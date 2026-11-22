@@ -16,6 +16,8 @@ import { AnimatePresence, motion } from 'motion/react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AuthScreen } from './components/AuthScreen';
 import { StoreLoadingScreen } from './components/StoreLoadingScreen';
+import { PWAInstallButton } from './components/PWAInstallButton';
+import { OfflineIndicator } from './components/OfflineIndicator';
 import { HomeDashboardView } from './components/HomeDashboardView';
 import { SalesPosView } from './components/SalesPosView';
 import { ProductsView } from './components/ProductsView';
@@ -462,8 +464,9 @@ export function DokanStoreMainApp() {
               </div>
             </div>
 
-            {/* Right Controls: Language, Theme, Logout */}
+            {/* Right Controls: Install PWA, Language, Theme, Logout */}
             <div className="flex items-center gap-1.5 shrink-0">
+              <PWAInstallButton isBengali={isBengali} variant="header" />
               <button
                 type="button"
                 onClick={() => {
@@ -1066,6 +1069,7 @@ export function DokanStoreMainApp() {
             </div>
           </div>
         )}
+        <OfflineIndicator isBengali={isBengali} />
       </motion.div>
     </div>
   );

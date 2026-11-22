@@ -12,6 +12,7 @@ import {
   Cloud,
 } from 'lucide-react';
 import { vaultAccessService } from '../services/vaultAccessService';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface AuthScreenProps {
   onSuccess: () => void;
@@ -305,6 +306,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
             <Cloud className="w-4 h-4 text-[#00965E]" />
             <span>Sign in with Google (Admin & Staff)</span>
           </button>
+
+          {/* In-App PWA Install (iOS Safari Add to Home Screen & Android/Desktop) */}
+          <PWAInstallButton variant="auth" />
 
           {/* Footer Status Bar: Firebase on Left, Location Ramchandrapur Haat on Right */}
           <div className="w-full mt-5 pt-3.5 border-t border-[#E2E8F0] flex items-center justify-between text-xs font-semibold text-[#64748B]">
