@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<resources>
+    <string name="firestore_database_id" translatable="false">ai-studio-84b5bd0a-5f49-4967-bbbc-d96978a2cab9</string>
+    <string name="default_web_client_id" translatable="false">711595085780-s5qsdgg20cd820anqcrkbdn7tf0c0mf2.apps.googleusercontent.com</string>
+    <string name="google_app_id" translatable="false">1:711595085780:android:71be13380106ddfef41041</string>
+    <string name="google_api_key" translatable="false">AIzaSyCMN29b1LWGVIwVY83BQdYTYFXE7X43NJY</string>
+    <string name="google_crash_reporting_api_key" translatable="false">AIzaSyCMN29b1LWGVIwVY83BQdYTYFXE7X43NJY</string>
+    <string name="google_storage_bucket" translatable="false">siaam-store.firebasestorage.app</string>
+    <string name="gcm_defaultSenderId" translatable="false">711595085780</string>
+    <string name="project_id" translatable="false">siaam-store</string>
+</resources>

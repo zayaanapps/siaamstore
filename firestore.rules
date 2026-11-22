@@ -1,0 +1,411 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny everything unless explicitly authorized below
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedAuth() {
+      return isSignedIn() &&
+             request.auth.token.email_verified == true &&
+             request.auth.token.email is string &&
+             request.auth.token.email.size() >= 3 &&
+             request.auth.token.email.size() <= 120;
+    }
+
+    function authAccountId() {
+      return 'acc_' + request.auth.token.email.lower().replace('[^a-zA-Z0-9_-]', '_');
+    }
+
+    function isAuthorizedStoreUser() {
+      return isVerifiedAuth() &&
+             exists(/databases/$(database)/documents/siaam_store_accounts/$(authAccountId()));
+    }
+
+    function isStoreAdmin() {
+      return isAuthorizedStoreUser() &&
+             get(/databases/$(database)/documents/siaam_store_accounts/$(authAccountId())).data.role == 'ADMIN';
+    }
+
+    function isOwner(userId) {
+      return (isVerifiedAuth() && request.auth.uid == userId) ||
+             (userId == 'siaam_store_shared' && isAuthorizedStoreUser());
+    }
+
+    function isAuthorizedUserField(fieldUserId, pathUserId) {
+      return fieldUserId is string &&
+             fieldUserId == pathUserId &&
+             isOwner(pathUserId);
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isNumber(val) {
+      return val is int || val is float;
+    }
+
+    function isValidTimestamp(ts) {
+      return ts is timestamp && ts <= request.time;
+    }
+
+    function isValidProduct(data, userId) {
+      return data.keys().hasAll([
+        'userId', 'name', 'category', 'unit', 'buyPrice', 'sellPrice',
+        'stock', 'lowStockThreshold', 'barcode', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'userId', 'name', 'category', 'unit', 'buyPrice', 'sellPrice',
+        'stock', 'lowStockThreshold', 'barcode', 'quality', 'note', 'createdAt', 'updatedAt'
+      ]) &&
+      isAuthorizedUserField(data.userId, userId) &&
+      data.name is string && data.name.size() >= 1 && data.name.size() <= 120 &&
+      data.category is string && data.category.size() >= 1 && data.category.size() <= 60 &&
+      data.unit is string && data.unit.size() >= 1 && data.unit.size() <= 30 &&
+      isNumber(data.buyPrice) && data.buyPrice >= 0 &&
+      isNumber(data.sellPrice) && data.sellPrice >= 0 &&
+      isNumber(data.stock) && data.stock >= 0 &&
+      isNumber(data.lowStockThreshold) && data.lowStockThreshold >= 0 &&
+      data.barcode is string && data.barcode.size() <= 64 &&
+      (!('quality' in data) || (data.quality is string && data.quality.size() <= 100)) &&
+      (!('note' in data) || (data.note is string && data.note.size() <= 300)) &&
+      isValidTimestamp(data.createdAt) &&
+      isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidCustomer(data, userId) {
+      return data.keys().hasAll([
+        'userId', 'name', 'phone', 'address', 'totalDue',
+        'totalPurchased', 'totalPaid', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'userId', 'name', 'phone', 'address', 'identityHint', 'note', 'totalDue',
+        'totalPurchased', 'totalPaid', 'createdAt', 'updatedAt'
+      ]) &&
+      isAuthorizedUserField(data.userId, userId) &&
+      data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+      data.phone is string && data.phone.size() >= 1 && data.phone.size() <= 30 &&
+      data.address is string && data.address.size() <= 200 &&
+      (!('identityHint' in data) || (data.identityHint is string && data.identityHint.size() <= 150)) &&
+      (!('note' in data) || (data.note is string && data.note.size() <= 300)) &&
+      isNumber(data.totalDue) &&
+      isNumber(data.totalPurchased) && data.totalPurchased >= 0 &&
+      isNumber(data.totalPaid) && data.totalPaid >= 0 &&
+      isValidTimestamp(data.createdAt) &&
+      isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidTransaction(data, userId) {
+      return data.keys().hasAll([
+        'userId', 'type', 'title', 'amount', 'paidAmount', 'dueAmount',
+        'profitAmount', 'customerId', 'customerName', 'supplierId',
+        'supplierName', 'productId', 'category', 'notes', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'userId', 'type', 'title', 'amount', 'paidAmount', 'dueAmount',
+        'profitAmount', 'customerId', 'customerName', 'supplierId',
+        'supplierName', 'productId', 'category', 'notes', 'createdAt', 'updatedAt'
+      ]) &&
+      isAuthorizedUserField(data.userId, userId) &&
+      data.type is string && data.type in ['SALE', 'GIVE_DUE', 'RECEIVE_PAYMENT', 'PURCHASE', 'SUPPLIER_PAYMENT', 'EXPENSE', 'STOCK_ADJUST'] &&
+      data.title is string && data.title.size() >= 1 && data.title.size() <= 200 &&
+      isNumber(data.amount) && data.amount >= 0 &&
+      isNumber(data.paidAmount) && data.paidAmount >= 0 &&
+      isNumber(data.dueAmount) && data.dueAmount >= 0 &&
+      isNumber(data.profitAmount) &&
+      data.customerId is string && data.customerId.size() <= 128 &&
+      data.customerName is string && data.customerName.size() <= 100 &&
+      data.supplierId is string && data.supplierId.size() <= 128 &&
+      data.supplierName is string && data.supplierName.size() <= 100 &&
+      data.productId is string && data.productId.size() <= 128 &&
+      data.category is string && data.category.size() <= 60 &&
+      data.notes is string && data.notes.size() <= 300 &&
+      isValidTimestamp(data.createdAt) &&
+      isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidSupplier(data, userId) {
+      return data.keys().hasAll([
+        'userId', 'name', 'phone', 'company', 'payableBalance',
+        'totalPurchased', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'userId', 'name', 'phone', 'company', 'payableBalance',
+        'totalPurchased', 'createdAt', 'updatedAt'
+      ]) &&
+      isAuthorizedUserField(data.userId, userId) &&
+      data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+      data.phone is string && data.phone.size() >= 1 && data.phone.size() <= 30 &&
+      data.company is string && data.company.size() <= 100 &&
+      isNumber(data.payableBalance) && data.payableBalance >= 0 &&
+      isNumber(data.totalPurchased) && data.totalPurchased >= 0 &&
+      isValidTimestamp(data.createdAt) &&
+      isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidStaff(data, userId) {
+      return data.keys().hasAll([
+        'userId', 'name', 'role', 'phone', 'salary', 'active', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'userId', 'name', 'role', 'phone', 'salary', 'active', 'createdAt', 'updatedAt'
+      ]) &&
+      isAuthorizedUserField(data.userId, userId) &&
+      data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+      data.role is string && data.role in ['Owner', 'Manager', 'Cashier', 'Salesman', 'Inventory Clerk', 'Helper / Delivery'] &&
+      data.phone is string && data.phone.size() >= 1 && data.phone.size() <= 30 &&
+      isNumber(data.salary) && data.salary >= 0 &&
+      data.active is bool &&
+      isValidTimestamp(data.createdAt) &&
+      isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidAuditLog(data, userId) {
+      return data.keys().hasAll([
+        'userId', 'actorName', 'action', 'module', 'createdAt'
+      ]) &&
+      data.keys().hasOnly([
+        'userId', 'actorName', 'action', 'module', 'createdAt'
+      ]) &&
+      isAuthorizedUserField(data.userId, userId) &&
+      data.actorName is string && data.actorName.size() >= 1 && data.actorName.size() <= 100 &&
+      data.action is string && data.action.size() >= 1 && data.action.size() <= 200 &&
+      data.module is string && data.module.size() >= 1 && data.module.size() <= 60 &&
+      isValidTimestamp(data.createdAt);
+    }
+
+    function isValidRecycleBinItem(data, userId) {
+      return data.keys().hasAll([
+        'userId', 'itemType', 'itemId', 'name', 'details', 'payloadJson', 'deletedBy', 'deletedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'userId', 'itemType', 'itemId', 'name', 'details', 'payloadJson', 'deletedBy', 'deletedAt'
+      ]) &&
+      isAuthorizedUserField(data.userId, userId) &&
+      data.itemType is string && data.itemType in ['PRODUCT', 'CUSTOMER', 'SUPPLIER', 'EXPENSE', 'TRANSACTION', 'STAFF'] &&
+      data.itemId is string && data.itemId.size() <= 128 &&
+      data.name is string && data.name.size() >= 1 && data.name.size() <= 200 &&
+      data.details is string && data.details.size() <= 300 &&
+      data.payloadJson is string && data.payloadJson.size() <= 2000 &&
+      data.deletedBy is string && data.deletedBy.size() <= 120 &&
+      isValidTimestamp(data.deletedAt);
+    }
+
+    function isValidVaultAccount(data, userId) {
+      return data.keys().hasAll([
+        'userId', 'name', 'email', 'password', 'role', 'addedBy', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'userId', 'name', 'email', 'password', 'role', 'addedBy', 'createdAt', 'updatedAt'
+      ]) &&
+      isAuthorizedUserField(data.userId, userId) &&
+      data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+      data.email is string && data.email.size() >= 3 && data.email.size() <= 120 &&
+      data.password is string && data.password.size() >= 6 && data.password.size() <= 120 &&
+      data.role is string && data.role in ['ADMIN', 'ACCOUNT_MANAGER'] &&
+      data.addedBy is string && data.addedBy.size() >= 1 && data.addedBy.size() <= 120 &&
+      isValidTimestamp(data.createdAt) &&
+      isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidSharedStoreAccount(data) {
+      return data.keys().hasAll([
+        'userId', 'name', 'email', 'password', 'role', 'addedBy', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'userId', 'name', 'email', 'password', 'role', 'addedBy', 'createdAt', 'updatedAt'
+      ]) &&
+      data.userId == 'siaam_store_shared' &&
+      data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+      data.email is string && data.email.size() >= 3 && data.email.size() <= 120 &&
+      data.password is string && data.password.size() >= 6 && data.password.size() <= 120 &&
+      data.role is string && data.role in ['ADMIN', 'ACCOUNT_MANAGER'] &&
+      data.addedBy is string && data.addedBy.size() >= 1 && data.addedBy.size() <= 120 &&
+      isValidTimestamp(data.createdAt) &&
+      isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidStoreSettings(data, userId) {
+      return data.keys().hasAll([
+        'userId', 'productCategories', 'productUnits', 'productQualities',
+        'expenseCategories', 'expensePresets', 'startingCashBalance',
+        'language', 'isDarkMode', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'userId', 'productCategories', 'productUnits', 'productQualities',
+        'expenseCategories', 'expensePresets', 'startingCashBalance',
+        'language', 'isDarkMode', 'updatedAt'
+      ]) &&
+      isAuthorizedUserField(data.userId, userId) &&
+      data.productCategories is list && data.productCategories.size() <= 100 &&
+      (data.productCategories.size() == 0 || data.productCategories[0] is string) &&
+      data.productUnits is list && data.productUnits.size() <= 100 &&
+      (data.productUnits.size() == 0 || data.productUnits[0] is string) &&
+      data.productQualities is list && data.productQualities.size() <= 100 &&
+      (data.productQualities.size() == 0 || data.productQualities[0] is string) &&
+      data.expenseCategories is list && data.expenseCategories.size() <= 100 &&
+      (data.expenseCategories.size() == 0 || data.expenseCategories[0] is map) &&
+      data.expensePresets is list && data.expensePresets.size() <= 100 &&
+      (data.expensePresets.size() == 0 || data.expensePresets[0] is map) &&
+      isNumber(data.startingCashBalance) && data.startingCashBalance >= 0 &&
+      data.language is string && data.language in ['BENGALI', 'ENGLISH'] &&
+      data.isDarkMode is bool &&
+      isValidTimestamp(data.updatedAt);
+    }
+
+    // Store membership & role registry:
+    // - Verified users may read ONLY their own account doc to verify membership.
+    // - Only verified Store Admins may list, create, update, or delete accounts
+    //   (members may update only their own non-locked password without changing role).
+    match /siaam_store_accounts/{accountId} {
+      allow get: if isValidId(accountId) &&
+                    ((isVerifiedAuth() && accountId == authAccountId()) || isStoreAdmin());
+      allow list: if isStoreAdmin() && existing().userId == 'siaam_store_shared';
+      allow create: if isValidId(accountId) &&
+                       isStoreAdmin() &&
+                       isValidSharedStoreAccount(incoming());
+      allow update: if isValidId(accountId) &&
+                       isValidSharedStoreAccount(incoming()) &&
+                       existing().addedBy != 'Emergency Lock' &&
+                       (
+                         isStoreAdmin() ||
+                         (
+                           isVerifiedAuth() &&
+                           accountId == authAccountId() &&
+                           incoming().role == existing().role &&
+                           incoming().email == existing().email &&
+                           incoming().name == existing().name &&
+                           incoming().createdAt == existing().createdAt &&
+                           incoming().diff(existing()).affectedKeys().hasOnly([
+                             'password', 'addedBy', 'updatedAt'
+                           ])
+                         )
+                       );
+      allow delete: if isValidId(accountId) &&
+                       isStoreAdmin() &&
+                       existing().addedBy != 'Emergency Lock';
+    }
+
+    match /users/{userId}/products/{productId} {
+      allow get, delete: if isOwner(userId) && isValidId(productId);
+      allow list: if isOwner(userId) && existing().userId == userId;
+      allow create: if isOwner(userId) && isValidId(productId) && isValidProduct(incoming(), userId);
+      allow update: if isOwner(userId) && isValidId(productId) &&
+                       isValidProduct(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'name', 'category', 'unit', 'buyPrice', 'sellPrice',
+                         'stock', 'lowStockThreshold', 'barcode', 'quality', 'note', 'updatedAt'
+                       ]);
+    }
+
+    match /users/{userId}/customers/{customerId} {
+      allow get, delete: if isOwner(userId) && isValidId(customerId);
+      allow list: if isOwner(userId) && existing().userId == userId;
+      allow create: if isOwner(userId) && isValidId(customerId) && isValidCustomer(incoming(), userId);
+      allow update: if isOwner(userId) && isValidId(customerId) &&
+                       isValidCustomer(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'name', 'phone', 'address', 'identityHint', 'note', 'totalDue',
+                         'totalPurchased', 'totalPaid', 'updatedAt'
+                       ]);
+    }
+
+    match /users/{userId}/transactions/{transactionId} {
+      allow get, delete: if isOwner(userId) && isValidId(transactionId);
+      allow list: if isOwner(userId) && existing().userId == userId;
+      allow create: if isOwner(userId) && isValidId(transactionId) && isValidTransaction(incoming(), userId);
+      allow update: if isOwner(userId) && isValidId(transactionId) &&
+                       isValidTransaction(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'title', 'amount', 'paidAmount', 'dueAmount', 'profitAmount',
+                         'notes', 'category', 'updatedAt'
+                       ]);
+    }
+
+    match /users/{userId}/suppliers/{supplierId} {
+      allow get, delete: if isOwner(userId) && isValidId(supplierId);
+      allow list: if isOwner(userId) && existing().userId == userId;
+      allow create: if isOwner(userId) && isValidId(supplierId) && isValidSupplier(incoming(), userId);
+      allow update: if isOwner(userId) && isValidId(supplierId) &&
+                       isValidSupplier(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'name', 'phone', 'company', 'payableBalance', 'totalPurchased', 'updatedAt'
+                       ]);
+    }
+
+    match /users/{userId}/staff/{staffId} {
+      allow get, delete: if isOwner(userId) && isValidId(staffId);
+      allow list: if isOwner(userId) && existing().userId == userId;
+      allow create: if isOwner(userId) && isValidId(staffId) && isValidStaff(incoming(), userId);
+      allow update: if isOwner(userId) && isValidId(staffId) &&
+                       isValidStaff(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'name', 'role', 'phone', 'salary', 'active', 'updatedAt'
+                       ]);
+    }
+
+    match /users/{userId}/audit_logs/{logId} {
+      allow get, delete: if isOwner(userId) && isValidId(logId);
+      allow list: if isOwner(userId) && existing().userId == userId;
+      allow create: if isOwner(userId) && isValidId(logId) && isValidAuditLog(incoming(), userId);
+      allow update: if false;
+    }
+
+    match /users/{userId}/recycle_bin/{binId} {
+      allow get, delete: if isOwner(userId) && isValidId(binId);
+      allow list: if isOwner(userId) && existing().userId == userId;
+      allow create: if isOwner(userId) && isValidId(binId) && isValidRecycleBinItem(incoming(), userId);
+      allow update: if false;
+    }
+
+    match /users/{userId}/vault_accounts/{accountId} {
+      allow get, delete: if isOwner(userId) && isValidId(accountId);
+      allow list: if isOwner(userId) && existing().userId == userId;
+      allow create: if isOwner(userId) && isValidId(accountId) && isValidVaultAccount(incoming(), userId);
+      allow update: if isOwner(userId) && isValidId(accountId) &&
+                       isValidVaultAccount(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'name', 'email', 'password', 'role', 'addedBy', 'createdAt', 'updatedAt'
+                       ]);
+    }
+
+    match /users/{userId}/store_settings/{settingId} {
+      allow get, delete: if isOwner(userId) && isValidId(settingId);
+      allow list: if isOwner(userId) && existing().userId == userId;
+      allow create: if isOwner(userId) && isValidId(settingId) && isValidStoreSettings(incoming(), userId);
+      allow update: if isOwner(userId) && isValidId(settingId) &&
+                       isValidStoreSettings(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'productCategories', 'productUnits', 'productQualities',
+                         'expenseCategories', 'expensePresets', 'startingCashBalance',
+                         'language', 'isDarkMode', 'updatedAt'
+                       ]);
+    }
+  }
+}

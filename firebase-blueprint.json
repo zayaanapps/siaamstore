@@ -1,0 +1,205 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "Store inventory product item with pricing and stock threshold.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128, "description": "Owner user UID or shared store ID" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 120, "description": "Product display name" },
+        "category": { "type": "string", "minLength": 1, "maxLength": 60, "description": "Product category" },
+        "unit": { "type": "string", "minLength": 1, "maxLength": 30, "description": "Measurement unit (default or custom)" },
+        "buyPrice": { "type": "number", "description": "Unit purchase cost" },
+        "sellPrice": { "type": "number", "description": "Unit selling price" },
+        "stock": { "type": "number", "description": "Current stock quantity" },
+        "lowStockThreshold": { "type": "number", "description": "Alert threshold for low stock" },
+        "barcode": { "type": "string", "maxLength": 64, "description": "Product SKU or barcode" },
+        "quality": { "type": "string", "maxLength": 100, "description": "Optional product quality or grade" },
+        "note": { "type": "string", "maxLength": 300, "description": "Optional product note" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server update timestamp" }
+      },
+      "required": ["userId", "name", "category", "unit", "buyPrice", "sellPrice", "stock", "lowStockThreshold", "barcode", "createdAt", "updatedAt"]
+    },
+    "Customer": {
+      "title": "Customer",
+      "description": "Store customer profile and credit ledger summary.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128, "description": "Owner user UID or shared store ID" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 100, "description": "Customer full name" },
+        "phone": { "type": "string", "minLength": 1, "maxLength": 30, "description": "Customer phone number" },
+        "address": { "type": "string", "maxLength": 200, "description": "Customer address" },
+        "identityHint": { "type": "string", "maxLength": 150, "description": "Optional customer identity hint (e.g. father name, shop name)" },
+        "note": { "type": "string", "maxLength": 300, "description": "Optional customer note" },
+        "totalDue": { "type": "number", "description": "Current outstanding due amount" },
+        "totalPurchased": { "type": "number", "description": "Cumulative purchase amount" },
+        "totalPaid": { "type": "number", "description": "Cumulative paid amount" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server update timestamp" }
+      },
+      "required": ["userId", "name", "phone", "address", "totalDue", "totalPurchased", "totalPaid", "createdAt", "updatedAt"]
+    },
+    "StoreTransaction": {
+      "title": "StoreTransaction",
+      "description": "Unified store transaction record for POS sales, dues, payments, purchases, expenses, and stock history.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128, "description": "Owner user UID or shared store ID" },
+        "type": { "type": "string", "enum": ["SALE", "GIVE_DUE", "RECEIVE_PAYMENT", "PURCHASE", "SUPPLIER_PAYMENT", "EXPENSE", "STOCK_ADJUST"], "description": "Transaction type" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200, "description": "Transaction summary or item list" },
+        "amount": { "type": "number", "description": "Total monetary amount or stock delta" },
+        "paidAmount": { "type": "number", "description": "Cash paid or received immediately" },
+        "dueAmount": { "type": "number", "description": "Due/credit balance created" },
+        "profitAmount": { "type": "number", "description": "Calculated net profit for sales" },
+        "customerId": { "type": "string", "maxLength": 128, "description": "Optional customer ID" },
+        "customerName": { "type": "string", "maxLength": 100, "description": "Customer name for display" },
+        "supplierId": { "type": "string", "maxLength": 128, "description": "Optional supplier ID" },
+        "supplierName": { "type": "string", "maxLength": 100, "description": "Supplier name for display" },
+        "productId": { "type": "string", "maxLength": 128, "description": "Optional product ID for stock history" },
+        "category": { "type": "string", "maxLength": 60, "description": "Expense or transaction category" },
+        "notes": { "type": "string", "maxLength": 300, "description": "Detailed notes or cart items breakdown" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server update timestamp" }
+      },
+      "required": ["userId", "type", "title", "amount", "paidAmount", "dueAmount", "profitAmount", "customerId", "customerName", "supplierId", "supplierName", "productId", "category", "notes", "createdAt", "updatedAt"]
+    },
+    "Supplier": {
+      "title": "Supplier",
+      "description": "Vendor or wholesale supplier account for purchases and accounts payable.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128, "description": "Owner user UID or shared store ID" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 100, "description": "Supplier contact name" },
+        "phone": { "type": "string", "minLength": 1, "maxLength": 30, "description": "Supplier phone number" },
+        "company": { "type": "string", "maxLength": 100, "description": "Supplier company or brand" },
+        "payableBalance": { "type": "number", "description": "Current accounts payable balance" },
+        "totalPurchased": { "type": "number", "description": "Total stock purchased from supplier" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server update timestamp" }
+      },
+      "required": ["userId", "name", "phone", "company", "payableBalance", "totalPurchased", "createdAt", "updatedAt"]
+    },
+    "StaffMember": {
+      "title": "StaffMember",
+      "description": "Store staff member with role and monthly salary.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128, "description": "Owner user UID or shared store ID" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 100, "description": "Staff full name" },
+        "role": { "type": "string", "enum": ["Owner", "Manager", "Cashier", "Salesman", "Inventory Clerk", "Helper / Delivery"], "description": "Assigned store role" },
+        "phone": { "type": "string", "minLength": 1, "maxLength": 30, "description": "Staff phone number" },
+        "salary": { "type": "number", "description": "Monthly salary" },
+        "active": { "type": "boolean", "description": "Whether staff member is active" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server update timestamp" }
+      },
+      "required": ["userId", "name", "role", "phone", "salary", "active", "createdAt", "updatedAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Immutable audit log tracking store operations and actor actions.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128, "description": "Owner user UID or shared store ID" },
+        "actorName": { "type": "string", "minLength": 1, "maxLength": 100, "description": "User or staff name performing action" },
+        "action": { "type": "string", "minLength": 1, "maxLength": 200, "description": "Description of the action performed" },
+        "module": { "type": "string", "minLength": 1, "maxLength": 60, "description": "Module name (POS, Inventory, Customers, Accounts)" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server creation timestamp" }
+      },
+      "required": ["userId", "actorName", "action", "module", "createdAt"]
+    },
+    "RecycleBinItem": {
+      "title": "RecycleBinItem",
+      "description": "Soft-deleted store item stored in the Recycle Bin for recovery or permanent deletion.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128, "description": "Owner user UID or shared store ID" },
+        "itemType": { "type": "string", "enum": ["PRODUCT", "CUSTOMER", "SUPPLIER", "EXPENSE", "TRANSACTION", "STAFF"], "description": "Deleted entity type" },
+        "itemId": { "type": "string", "maxLength": 128, "description": "Original document ID" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 200, "description": "Item display title" },
+        "details": { "type": "string", "maxLength": 300, "description": "Item summary details" },
+        "payloadJson": { "type": "string", "maxLength": 2000, "description": "Optional serialized backup payload" },
+        "deletedBy": { "type": "string", "maxLength": 120, "description": "Actor who deleted the item" },
+        "deletedAt": { "type": "string", "format": "date-time", "description": "Server deletion timestamp" }
+      },
+      "required": ["userId", "itemType", "itemId", "name", "details", "payloadJson", "deletedBy", "deletedAt"]
+    },
+    "VaultAccount": {
+      "title": "VaultAccount",
+      "description": "Store User Management account (Admin or Account Manager) synced to Cloud Firestore.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128, "description": "Owner user UID or store identifier" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 100, "description": "Account holder display name" },
+        "email": { "type": "string", "minLength": 3, "maxLength": 120, "description": "Registered system email" },
+        "password": { "type": "string", "minLength": 6, "maxLength": 120, "description": "Vault password for login and Admin visibility" },
+        "role": { "type": "string", "enum": ["ADMIN", "ACCOUNT_MANAGER"], "description": "Assigned Vault role" },
+        "addedBy": { "type": "string", "minLength": 1, "maxLength": 120, "description": "Creator or last password reset status" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server update timestamp" }
+      },
+      "required": ["userId", "name", "email", "password", "role", "addedBy", "createdAt", "updatedAt"]
+    },
+    "StoreSettings": {
+      "title": "StoreSettings",
+      "description": "Cloud-synced store configuration including custom product categories/units/qualities, expense categories/presets, starting cash, language, and theme.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128, "description": "Owner user UID or shared store ID" },
+        "productCategories": { "type": "array", "description": "Custom and default product categories" },
+        "productUnits": { "type": "array", "description": "Custom and default product measurement units" },
+        "productQualities": { "type": "array", "description": "Custom and default product quality grades" },
+        "expenseCategories": { "type": "array", "description": "Custom and default shop expense categories with color keys" },
+        "expensePresets": { "type": "array", "description": "Custom and default common quick expense presets" },
+        "startingCashBalance": { "type": "number", "description": "Store starting cash in hand" },
+        "language": { "type": "string", "enum": ["BENGALI", "ENGLISH"], "description": "Selected display language" },
+        "isDarkMode": { "type": "boolean", "description": "Whether dark mode is enabled" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server update timestamp" }
+      },
+      "required": ["userId", "productCategories", "productUnits", "productQualities", "expenseCategories", "expensePresets", "startingCashBalance", "language", "isDarkMode", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/products/{productId}": {
+      "schema": { "$ref": "#/entities/Product" },
+      "description": "Store products owned by a specific user or shared store vault."
+    },
+    "/users/{userId}/customers/{customerId}": {
+      "schema": { "$ref": "#/entities/Customer" },
+      "description": "Store customers and due ledgers owned by a specific user or shared store vault."
+    },
+    "/users/{userId}/transactions/{transactionId}": {
+      "schema": { "$ref": "#/entities/StoreTransaction" },
+      "description": "Sales, dues, payments, purchases, expenses, and stock adjustments."
+    },
+    "/users/{userId}/suppliers/{supplierId}": {
+      "schema": { "$ref": "#/entities/Supplier" },
+      "description": "Suppliers and accounts payable owned by a specific user or shared store vault."
+    },
+    "/users/{userId}/staff/{staffId}": {
+      "schema": { "$ref": "#/entities/StaffMember" },
+      "description": "Staff members and roles managed by a specific user or shared store vault."
+    },
+    "/users/{userId}/audit_logs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Audit trail of actions performed inside the store."
+    },
+    "/users/{userId}/recycle_bin/{binId}": {
+      "schema": { "$ref": "#/entities/RecycleBinItem" },
+      "description": "Soft-deleted store entities in the Recycle Bin."
+    },
+    "/users/{userId}/vault_accounts/{accountId}": {
+      "schema": { "$ref": "#/entities/VaultAccount" },
+      "description": "User Management accounts (Admin and Account Manager credentials) synced to Firebase."
+    },
+    "/users/{userId}/store_settings/{settingId}": {
+      "schema": { "$ref": "#/entities/StoreSettings" },
+      "description": "Cloud-synced store settings, custom categories, units, qualities, expense presets, and preferences."
+    },
+    "/siaam_store_accounts/{accountId}": {
+      "schema": { "$ref": "#/entities/VaultAccount" },
+      "description": "Shared Store-wide User Management accounts synced across Login Screen, Email/Password Vault sessions, and Google Admin sessions."
+    }
+  }
+}

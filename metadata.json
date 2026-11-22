@@ -1,0 +1,6 @@
+{
+  "name": "Siaam Store",
+  "description": "সিয়াম স্টোর (Siaam Store) — Ramchandrapur Hat, Chapainawabganj. Store management, POS, inventory, customer ledger, and role-based Admin & Account Manager vault.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
