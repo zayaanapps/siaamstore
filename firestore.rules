@@ -17,9 +17,15 @@ service cloud.firestore {
              request.auth.token.email.size() <= 120;
     }
 
+    function hasGoogleIdentity() {
+      return 'firebase' in request.auth.token &&
+             'identities' in request.auth.token.firebase &&
+             'google.com' in request.auth.token.firebase.identities;
+    }
+
     function isVerifiedAuth() {
       return hasAuthEmail() &&
-             request.auth.token.email_verified == true;
+             (request.auth.token.email_verified == true || hasGoogleIdentity());
     }
 
     function authAccountId() {
@@ -30,7 +36,7 @@ service cloud.firestore {
       return hasAuthEmail() &&
              exists(/databases/$(database)/documents/siaam_store_accounts/$(authAccountId())) &&
              (
-               request.auth.token.email_verified == true ||
+               isVerifiedAuth() ||
                get(/databases/$(database)/documents/siaam_store_accounts/$(authAccountId())).data.get('authUid', '') == request.auth.uid
              );
     }

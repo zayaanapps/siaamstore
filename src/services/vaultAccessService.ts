@@ -376,6 +376,10 @@ class VaultAccessService {
     }
   }
 
+  private hasGoogleProvider(fbUser: FirebaseUser): boolean {
+    return fbUser.providerData.some((p) => p.providerId === 'google.com');
+  }
+
   private async ensureCurrentUserHasPasswordLinkedAndUid(
     fbUser: FirebaseUser,
     account: VaultUserAccount
@@ -383,7 +387,13 @@ class VaultAccessService {
     const cleanEmail = (fbUser.email || account.email || '').trim().toLowerCase();
     if (!cleanEmail) return;
 
-    // 1. Automatically link Email/Password credential to a Google-signed-in user
+    // 1. Bind authUid on their Firestore account doc FIRST (before linkWithCredential,
+    //    because linking a password credential can flip fbUser.emailVerified to false).
+    if (account.authUid !== fbUser.uid) {
+      await this.stampAccountAuthUid(cleanEmail, fbUser.uid);
+    }
+
+    // 2. Automatically link Email/Password credential to a Google-signed-in user
     //    so they can sign in with BOTH Google and Email + Vault Password seamlessly.
     const hasPasswordProvider = fbUser.providerData.some(
       (p) => p.providerId === 'password'
@@ -395,11 +405,6 @@ class VaultAccessService {
       } catch {
         // Ignore if already linked, requires recent login, or password provider unavailable
       }
-    }
-
-    // 2. Bind authUid on their Firestore account doc so zero-trust rules match their UID
-    if (account.authUid !== fbUser.uid) {
-      await this.stampAccountAuthUid(cleanEmail, fbUser.uid);
     }
   }
 
@@ -521,7 +526,7 @@ class VaultAccessService {
     fbUser: FirebaseUser,
     account: VaultUserAccount
   ): boolean {
-    if (fbUser.emailVerified) return true;
+    if (fbUser.emailVerified || this.hasGoogleProvider(fbUser)) return true;
     return Boolean(account.authUid && account.authUid === fbUser.uid);
   }
 
@@ -601,6 +606,11 @@ class VaultAccessService {
       this.stopSharedStoreFirestoreSync();
       this.accounts = [resolvedAccount];
       this.saveAccountsToStorage(this.accounts);
+    }
+
+    if (resolvedAccount.authUid !== fbUser.uid) {
+      await this.stampAccountAuthUid(cleanEmail, fbUser.uid);
+      resolvedAccount.authUid = fbUser.uid;
     }
 
     this.isAuthReady = true;
@@ -1017,7 +1027,7 @@ class VaultAccessService {
     const cred = await signInWithPopup(auth, googleProvider);
     const fbUser = cred.user;
     const cleanEmail = (fbUser.email || '').trim().toLowerCase();
-    if (!cleanEmail || !fbUser.emailVerified) {
+    if (!cleanEmail || (!fbUser.emailVerified && !this.hasGoogleProvider(fbUser))) {
       await firebaseSignOut(auth);
       throw new Error(
         'Google Sign-In failed: Could not verify your Google account email.'
@@ -1038,6 +1048,11 @@ class VaultAccessService {
       !isLockedEmergencyAdmin(cleanEmail)
         ? { ...existing, name: fbUser.displayName }
         : existing;
+
+    if (updatedAccount.authUid !== fbUser.uid) {
+      await this.stampAccountAuthUid(cleanEmail, fbUser.uid);
+      updatedAccount.authUid = fbUser.uid;
+    }
 
     this.isCloudSynced = true;
     this.isAuthReady = true;
