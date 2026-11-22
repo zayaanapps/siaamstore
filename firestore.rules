@@ -10,12 +10,16 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isVerifiedAuth() {
+    function hasAuthEmail() {
       return isSignedIn() &&
-             request.auth.token.email_verified == true &&
              request.auth.token.email is string &&
              request.auth.token.email.size() >= 3 &&
              request.auth.token.email.size() <= 120;
+    }
+
+    function isVerifiedAuth() {
+      return hasAuthEmail() &&
+             request.auth.token.email_verified == true;
     }
 
     function authAccountId() {
@@ -23,8 +27,12 @@ service cloud.firestore {
     }
 
     function isAuthorizedStoreUser() {
-      return isVerifiedAuth() &&
-             exists(/databases/$(database)/documents/siaam_store_accounts/$(authAccountId()));
+      return hasAuthEmail() &&
+             exists(/databases/$(database)/documents/siaam_store_accounts/$(authAccountId())) &&
+             (
+               request.auth.token.email_verified == true ||
+               get(/databases/$(database)/documents/siaam_store_accounts/$(authAccountId())).data.get('authUid', '') == request.auth.uid
+             );
     }
 
     function isStoreAdmin() {
@@ -33,7 +41,7 @@ service cloud.firestore {
     }
 
     function isOwner(userId) {
-      return (isVerifiedAuth() && request.auth.uid == userId) ||
+      return (isSignedIn() && request.auth.uid == userId && isAuthorizedStoreUser()) ||
              (userId == 'siaam_store_shared' && isAuthorizedStoreUser());
     }
 
@@ -210,7 +218,7 @@ service cloud.firestore {
         'userId', 'name', 'email', 'password', 'role', 'addedBy', 'createdAt', 'updatedAt'
       ]) &&
       data.keys().hasOnly([
-        'userId', 'name', 'email', 'password', 'role', 'addedBy', 'createdAt', 'updatedAt'
+        'userId', 'name', 'email', 'password', 'role', 'addedBy', 'authUid', 'createdAt', 'updatedAt'
       ]) &&
       isAuthorizedUserField(data.userId, userId) &&
       data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
@@ -218,6 +226,7 @@ service cloud.firestore {
       data.password is string && data.password.size() >= 6 && data.password.size() <= 120 &&
       data.role is string && data.role in ['ADMIN', 'ACCOUNT_MANAGER'] &&
       data.addedBy is string && data.addedBy.size() >= 1 && data.addedBy.size() <= 120 &&
+      (!('authUid' in data) || (data.authUid is string && data.authUid.size() <= 128)) &&
       isValidTimestamp(data.createdAt) &&
       isValidTimestamp(data.updatedAt);
     }
@@ -227,7 +236,7 @@ service cloud.firestore {
         'userId', 'name', 'email', 'password', 'role', 'addedBy', 'createdAt', 'updatedAt'
       ]) &&
       data.keys().hasOnly([
-        'userId', 'name', 'email', 'password', 'role', 'addedBy', 'createdAt', 'updatedAt'
+        'userId', 'name', 'email', 'password', 'role', 'addedBy', 'authUid', 'createdAt', 'updatedAt'
       ]) &&
       data.userId == 'siaam_store_shared' &&
       data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
@@ -235,6 +244,7 @@ service cloud.firestore {
       data.password is string && data.password.size() >= 6 && data.password.size() <= 120 &&
       data.role is string && data.role in ['ADMIN', 'ACCOUNT_MANAGER'] &&
       data.addedBy is string && data.addedBy.size() >= 1 && data.addedBy.size() <= 120 &&
+      (!('authUid' in data) || (data.authUid is string && data.authUid.size() <= 128)) &&
       isValidTimestamp(data.createdAt) &&
       isValidTimestamp(data.updatedAt);
     }
@@ -268,31 +278,52 @@ service cloud.firestore {
     }
 
     // Store membership & role registry:
-    // - Verified users may read ONLY their own account doc to verify membership.
-    // - Only verified Store Admins may list, create, update, or delete accounts
-    //   (members may update only their own non-locked password without changing role).
+    // - Verified users (Google Sign-In / verified email) or Admin-provisioned Email/Password
+    //   users (matched by authUid) may read ONLY their own account doc to verify membership.
+    // - Only verified/provisioned Store Admins may list, create, update, or delete accounts.
     match /siaam_store_accounts/{accountId} {
       allow get: if isValidId(accountId) &&
-                    ((isVerifiedAuth() && accountId == authAccountId()) || isStoreAdmin());
+                    (
+                      isStoreAdmin() ||
+                      (isVerifiedAuth() && accountId == authAccountId()) ||
+                      (hasAuthEmail() && accountId == authAccountId() && existing().get('authUid', '') == request.auth.uid)
+                    );
       allow list: if isStoreAdmin() && existing().userId == 'siaam_store_shared';
       allow create: if isValidId(accountId) &&
                        isStoreAdmin() &&
                        isValidSharedStoreAccount(incoming());
       allow update: if isValidId(accountId) &&
                        isValidSharedStoreAccount(incoming()) &&
-                       existing().addedBy != 'Emergency Lock' &&
                        (
-                         isStoreAdmin() ||
                          (
                            isVerifiedAuth() &&
                            accountId == authAccountId() &&
-                           incoming().role == existing().role &&
-                           incoming().email == existing().email &&
-                           incoming().name == existing().name &&
-                           incoming().createdAt == existing().createdAt &&
-                           incoming().diff(existing()).affectedKeys().hasOnly([
-                             'password', 'addedBy', 'updatedAt'
-                           ])
+                           incoming().get('authUid', '') == request.auth.uid &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['authUid', 'updatedAt'])
+                         ) ||
+                         (
+                           isStoreAdmin() &&
+                           !('authUid' in existing()) &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['authUid', 'updatedAt'])
+                         ) ||
+                         (
+                           existing().addedBy != 'Emergency Lock' &&
+                           (
+                             isStoreAdmin() ||
+                             (
+                               hasAuthEmail() &&
+                               accountId == authAccountId() &&
+                               (request.auth.token.email_verified == true || existing().get('authUid', '') == request.auth.uid) &&
+                               incoming().role == existing().role &&
+                               incoming().email == existing().email &&
+                               incoming().name == existing().name &&
+                               incoming().createdAt == existing().createdAt &&
+                               incoming().get('authUid', '') == existing().get('authUid', '') &&
+                               incoming().diff(existing()).affectedKeys().hasOnly([
+                                 'password', 'addedBy', 'updatedAt'
+                               ])
+                             )
+                           )
                          )
                        );
       allow delete: if isValidId(accountId) &&
@@ -390,7 +421,7 @@ service cloud.firestore {
                        isValidVaultAccount(incoming(), userId) &&
                        incoming().userId == existing().userId &&
                        incoming().diff(existing()).affectedKeys().hasOnly([
-                         'name', 'email', 'password', 'role', 'addedBy', 'createdAt', 'updatedAt'
+                         'name', 'email', 'password', 'role', 'addedBy', 'authUid', 'createdAt', 'updatedAt'
                        ]);
     }
 

@@ -29,6 +29,7 @@ export interface VaultUserAccount {
   password: string;
   role: VaultRole;
   addedBy: string;
+  authUid?: string;
   createdAtMillis: number;
   updatedAtMillis: number;
   pendingCloudSync: boolean;

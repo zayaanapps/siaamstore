@@ -1,9 +1,19 @@
+import { getApps, initializeApp } from 'firebase/app';
 import {
+  createUserWithEmailAndPassword,
+  EmailAuthProvider,
+  getAuth,
+  inMemoryPersistence,
+  linkWithCredential,
   onAuthStateChanged,
+  reauthenticateWithCredential,
   sendPasswordResetEmail,
+  setPersistence,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut as firebaseSignOut,
+  updatePassword,
+  type Auth,
   type User as FirebaseUser,
 } from 'firebase/auth';
 import {
@@ -17,9 +27,17 @@ import {
   serverTimestamp,
   setDoc,
   Timestamp,
+  updateDoc,
   where,
 } from 'firebase/firestore';
-import { auth, db, googleProvider, handleFirestoreError, OperationType } from '../firebase';
+import {
+  auth,
+  db,
+  firebaseConfig,
+  googleProvider,
+  handleFirestoreError,
+  OperationType,
+} from '../firebase';
 import { VaultRole, VaultUserAccount } from '../types/dokan';
 
 const STORAGE_ACCOUNTS_KEY = 'siaam_store_vault_accounts_v1';
@@ -105,6 +123,7 @@ function accountDocIdForEmail(email: string): string {
 function buildFirestorePayload(account: VaultUserAccount, ownerUserId: string) {
   const safeCreatedMillis = Math.max(1000, account.createdAtMillis || DEFAULT_SEED_TIMESTAMP);
   const createdTs = Timestamp.fromMillis(safeCreatedMillis);
+  const cleanAuthUid = (account.authUid || '').trim().slice(0, 128);
   return {
     userId: ownerUserId,
     name: (account.name || 'Store User').trim().slice(0, 100) || 'Store User',
@@ -112,9 +131,24 @@ function buildFirestorePayload(account: VaultUserAccount, ownerUserId: string) {
     password: (account.password || '').trim().slice(0, 120),
     role: account.role,
     addedBy: (account.addedBy || 'System').trim().slice(0, 120) || 'System',
+    ...(cleanAuthUid ? { authUid: cleanAuthUid } : {}),
     createdAt: createdTs,
     updatedAt: serverTimestamp(),
   };
+}
+
+const SECONDARY_AUTH_APP_NAME = 'siaam_store_user_provisioner';
+
+async function getSecondaryAuth(): Promise<Auth> {
+  const existing = getApps().find((a) => a.name === SECONDARY_AUTH_APP_NAME);
+  const secondaryApp = existing || initializeApp(firebaseConfig, SECONDARY_AUTH_APP_NAME);
+  const secondaryAuth = getAuth(secondaryApp);
+  try {
+    await setPersistence(secondaryAuth, inMemoryPersistence);
+  } catch {
+    // Ignore persistence error if already set
+  }
+  return secondaryAuth;
 }
 
 type Listener = () => void;
@@ -128,6 +162,7 @@ class VaultAccessService {
   private listeners: Set<Listener> = new Set();
   private unsubscribeShared: (() => void) | null = null;
   private listeningUid: string | null = null;
+  private provisionedEmailsAttempted: Set<string> = new Set();
 
   constructor() {
     this.ensureSeededDefaultAccounts();
@@ -204,6 +239,7 @@ class VaultAccessService {
           password: String(item.password || ''),
           role: locked ? VaultRole.ADMIN : role,
           addedBy,
+          authUid: typeof item.authUid === 'string' && item.authUid.trim() ? item.authUid.trim() : undefined,
           createdAtMillis: Number(item.createdAtMillis) || DEFAULT_SEED_TIMESTAMP,
           updatedAtMillis: Number(item.updatedAtMillis) || DEFAULT_SEED_TIMESTAMP,
           pendingCloudSync: Boolean(item.pendingCloudSync),
@@ -295,17 +331,162 @@ class VaultAccessService {
     const locked =
       remoteAddedBy === 'Emergency Lock' || isLockedEmergencyAdmin(email);
 
+    const remoteAuthUid =
+      typeof data.authUid === 'string' && data.authUid.trim()
+        ? data.authUid.trim()
+        : undefined;
+
     return {
       name: remoteName,
       email,
       password: remotePassword,
       role: locked ? VaultRole.ADMIN : remoteRole,
       addedBy: locked ? 'Emergency Lock' : remoteAddedBy,
+      authUid: remoteAuthUid,
       createdAtMillis: remoteCreatedMillis,
       updatedAtMillis: remoteUpdatedMillis,
       pendingCloudSync: false,
       isLockedEmergencyAdmin: locked,
     };
+  }
+
+  private async stampAccountAuthUid(email: string, uid: string): Promise<void> {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const cleanUid = (uid || '').trim();
+    if (!cleanEmail || !cleanUid) return;
+    const docId = accountDocIdForEmail(cleanEmail);
+    try {
+      await updateDoc(doc(db, SHARED_ACCOUNTS_COLLECTION, docId), {
+        authUid: cleanUid,
+        updatedAt: serverTimestamp(),
+      });
+      const idx = this.accounts.findIndex((a) => a.email.toLowerCase() === cleanEmail);
+      if (idx >= 0 && this.accounts[idx].authUid !== cleanUid) {
+        const copy = [...this.accounts];
+        copy[idx] = { ...copy[idx], authUid: cleanUid };
+        this.accounts = copy;
+        this.saveAccountsToStorage(copy);
+        if (this.activeSession?.email.toLowerCase() === cleanEmail) {
+          this.activeSession = copy[idx];
+        }
+        this.notify();
+      }
+    } catch {
+      // Best-effort authUid stamp
+    }
+  }
+
+  private async ensureCurrentUserHasPasswordLinkedAndUid(
+    fbUser: FirebaseUser,
+    account: VaultUserAccount
+  ): Promise<void> {
+    const cleanEmail = (fbUser.email || account.email || '').trim().toLowerCase();
+    if (!cleanEmail) return;
+
+    // 1. Automatically link Email/Password credential to a Google-signed-in user
+    //    so they can sign in with BOTH Google and Email + Vault Password seamlessly.
+    const hasPasswordProvider = fbUser.providerData.some(
+      (p) => p.providerId === 'password'
+    );
+    if (!hasPasswordProvider && account.password && account.password.length >= 6) {
+      try {
+        const cred = EmailAuthProvider.credential(cleanEmail, account.password);
+        await linkWithCredential(fbUser, cred);
+      } catch {
+        // Ignore if already linked, requires recent login, or password provider unavailable
+      }
+    }
+
+    // 2. Bind authUid on their Firestore account doc so zero-trust rules match their UID
+    if (account.authUid !== fbUser.uid) {
+      await this.stampAccountAuthUid(cleanEmail, fbUser.uid);
+    }
+  }
+
+  private async provisionSecondaryEmailPasswordAuth(
+    emailInput: string,
+    passwordInput: string,
+    previousPasswordInput?: string
+  ): Promise<string | null> {
+    const cleanEmail = (emailInput || '').trim().toLowerCase();
+    const cleanPassword = (passwordInput || '').trim();
+    const prevPassword = (previousPasswordInput || '').trim();
+    if (!cleanEmail || !cleanEmail.includes('@') || cleanPassword.length < 6) {
+      return null;
+    }
+
+    let secondaryAuth: Auth | null = null;
+    try {
+      secondaryAuth = await getSecondaryAuth();
+      try {
+        const created = await createUserWithEmailAndPassword(
+          secondaryAuth,
+          cleanEmail,
+          cleanPassword
+        );
+        return created.user.uid;
+      } catch (createErr: unknown) {
+        const code =
+          typeof createErr === 'object' && createErr !== null && 'code' in createErr
+            ? String((createErr as { code?: unknown }).code || '')
+            : '';
+        if (code === 'auth/email-already-in-use') {
+          try {
+            const signedIn = await signInWithEmailAndPassword(
+              secondaryAuth,
+              cleanEmail,
+              cleanPassword
+            );
+            return signedIn.user.uid;
+          } catch {
+            if (prevPassword && prevPassword !== cleanPassword && prevPassword.length >= 6) {
+              try {
+                const oldSignIn = await signInWithEmailAndPassword(
+                  secondaryAuth,
+                  cleanEmail,
+                  prevPassword
+                );
+                await updatePassword(oldSignIn.user, cleanPassword);
+                return oldSignIn.user.uid;
+              } catch {
+                return null;
+              }
+            }
+            return null;
+          }
+        }
+        return null;
+      }
+    } catch {
+      return null;
+    } finally {
+      if (secondaryAuth) {
+        try {
+          await firebaseSignOut(secondaryAuth);
+        } catch {
+          // Ignore secondary signout error
+        }
+      }
+    }
+  }
+
+  private async syncMissingAuthUidsForAdmin(accounts: VaultUserAccount[]): Promise<void> {
+    const currentEmail = (auth.currentUser?.email || '').trim().toLowerCase();
+    for (const acc of accounts) {
+      const cleanEmail = acc.email.trim().toLowerCase();
+      if (!cleanEmail || acc.authUid || acc.password.length < 6) continue;
+      if (cleanEmail === currentEmail) continue;
+      if (this.provisionedEmailsAttempted.has(cleanEmail)) continue;
+      this.provisionedEmailsAttempted.add(cleanEmail);
+
+      const uid = await this.provisionSecondaryEmailPasswordAuth(
+        cleanEmail,
+        acc.password
+      );
+      if (uid) {
+        await this.stampAccountAuthUid(cleanEmail, uid);
+      }
+    }
   }
 
   private async fetchOwnAccountFromFirestore(
@@ -336,12 +517,20 @@ class VaultAccessService {
     }
   }
 
+  private isFirebaseUserAuthorizedForAccount(
+    fbUser: FirebaseUser,
+    account: VaultUserAccount
+  ): boolean {
+    if (fbUser.emailVerified) return true;
+    return Boolean(account.authUid && account.authUid === fbUser.uid);
+  }
+
   private async resolveSignedInFirebaseUser(
     fbUser: FirebaseUser,
     seq: number
   ): Promise<void> {
     const cleanEmail = (fbUser.email || '').trim().toLowerCase();
-    if (!cleanEmail || !fbUser.emailVerified) {
+    if (!cleanEmail) {
       this.stopSharedStoreFirestoreSync();
       this.listeningUid = null;
       this.activeSession = null;
@@ -360,7 +549,7 @@ class VaultAccessService {
     const account = await this.fetchOwnAccountFromFirestore(cleanEmail);
     if (seq !== this.authCheckSeq) return;
 
-    if (!account) {
+    if (!account || !this.isFirebaseUserAuthorizedForAccount(fbUser, account)) {
       this.stopSharedStoreFirestoreSync();
       this.listeningUid = null;
       this.activeSession = null;
@@ -416,6 +605,8 @@ class VaultAccessService {
 
     this.isAuthReady = true;
     this.notify();
+
+    void this.ensureCurrentUserHasPasswordLinkedAndUid(fbUser, resolvedAccount);
   }
 
   private observeFirebaseAuthAndSync() {
@@ -531,7 +722,7 @@ class VaultAccessService {
   }
 
   private startSharedStoreFirestoreSync() {
-    if (!auth.currentUser || !auth.currentUser.emailVerified) {
+    if (!auth.currentUser) {
       return;
     }
     this.stopSharedStoreFirestoreSync();
@@ -568,6 +759,10 @@ class VaultAccessService {
           const remoteRole =
             data.role === VaultRole.ADMIN ? VaultRole.ADMIN : VaultRole.ACCOUNT_MANAGER;
           const remoteAddedBy = String(data.addedBy || '').trim() || 'Cloud Sync';
+          const remoteAuthUid =
+            typeof data.authUid === 'string' && data.authUid.trim()
+              ? data.authUid.trim()
+              : undefined;
           const remoteCreatedMillis =
             data.createdAt instanceof Timestamp
               ? data.createdAt.toMillis()
@@ -581,8 +776,14 @@ class VaultAccessService {
             localAcc.pendingCloudSync &&
             localAcc.updatedAtMillis > remoteUpdatedMillis
           ) {
-            mergedByEmail.set(email, localAcc);
-            void this.pushAccountToFirestore(localAcc);
+            mergedByEmail.set(email, {
+              ...localAcc,
+              authUid: localAcc.authUid || remoteAuthUid,
+            });
+            void this.pushAccountToFirestore({
+              ...localAcc,
+              authUid: localAcc.authUid || remoteAuthUid,
+            });
           } else {
             const locked =
               remoteAddedBy === 'Emergency Lock' || isLockedEmergencyAdmin(email);
@@ -592,6 +793,7 @@ class VaultAccessService {
               password: remotePassword,
               role: locked ? VaultRole.ADMIN : remoteRole,
               addedBy: locked ? 'Emergency Lock' : remoteAddedBy,
+              authUid: remoteAuthUid,
               createdAtMillis: remoteCreatedMillis,
               updatedAtMillis: remoteUpdatedMillis,
               pendingCloudSync: false,
@@ -643,6 +845,10 @@ class VaultAccessService {
           }
         }
         this.notify();
+
+        if (this.activeSession?.role === VaultRole.ADMIN) {
+          void this.syncMissingAuthUidsForAdmin(finalAccounts);
+        }
       },
       (error) => {
         handleFirestoreError(error, OperationType.LIST, SHARED_ACCOUNTS_COLLECTION);
@@ -670,12 +876,18 @@ class VaultAccessService {
         const remoteUpdatedMillis =
           data.updatedAt instanceof Timestamp ? data.updatedAt.toMillis() : Date.now();
 
+        const remoteAuthUid =
+          typeof data.authUid === 'string' && data.authUid.trim()
+            ? data.authUid.trim()
+            : undefined;
+
         const fetched: VaultUserAccount = {
           name: remoteName,
           email,
           password: remotePassword,
           role: locked ? VaultRole.ADMIN : remoteRole,
           addedBy: locked ? 'Emergency Lock' : remoteAddedBy,
+          authUid: remoteAuthUid,
           createdAtMillis: DEFAULT_SEED_TIMESTAMP,
           updatedAtMillis: remoteUpdatedMillis,
           pendingCloudSync: false,
@@ -738,37 +950,67 @@ class VaultAccessService {
       throw new Error('Please enter your vault password.');
     }
 
-    // If Firebase Auth is not yet signed in, attempt real Firebase Email/Password authentication
-    if (!auth.currentUser || !auth.currentUser.emailVerified) {
-      try {
-        const cred = await signInWithEmailAndPassword(
-          auth,
-          cleanEmail,
-          cleanPassword
-        );
-        if (!cred.user.emailVerified) {
-          await firebaseSignOut(auth);
-          throw new Error(
-            'Email verification is required for cloud security. Please use "Sign in with Google" with your registered store Gmail.'
-          );
-        }
-      } catch (err) {
-        const message = err instanceof Error ? err.message : '';
-        if (message.includes('Email verification is required')) {
-          throw err;
-        }
+    let fbUser: FirebaseUser;
+    try {
+      const cred = await signInWithEmailAndPassword(
+        auth,
+        cleanEmail,
+        cleanPassword
+      );
+      fbUser = cred.user;
+    } catch (err: unknown) {
+      const code =
+        typeof err === 'object' && err !== null && 'code' in err
+          ? String((err as { code?: unknown }).code || '')
+          : '';
+      if (code === 'auth/too-many-requests') {
         throw new Error(
-          'Cloud security is active for public repository protection. Please use "Sign in with Google" with your registered Admin or Staff Google account.'
+          'Too many login attempts. Please wait a minute and try again, or use "Sign in with Google".'
         );
       }
+      if (code === 'auth/operation-not-allowed') {
+        throw new Error(
+          'Email/Password sign-in is not enabled in Firebase Console yet. Please use "Sign in with Google".'
+        );
+      }
+      throw new Error(
+        'Incorrect email or password. If this is your first time using Email & Password login, tap "Sign in with Google" once to link your password automatically, or ask a Store Admin to check your credentials in User Management.'
+      );
     }
 
-    await this.refreshAccountFromFirestoreIfNeeded(cleanEmail);
-    const account = this.authenticateWithEmailPassword(cleanEmail, cleanPassword);
-    if (account.role === VaultRole.ADMIN) {
-      this.startSharedStoreFirestoreSync();
+    const existing = await this.fetchOwnAccountFromFirestore(cleanEmail);
+    if (!existing || !this.isFirebaseUserAuthorizedForAccount(fbUser, existing)) {
+      await firebaseSignOut(auth);
+      throw new Error(
+        `Access Denied: Your account (${cleanEmail}) is not authorized in Siaam Store. Ask a Store Admin to add or re-save this account in User Management.`
+      );
     }
-    return account;
+
+    this.isCloudSynced = true;
+    this.isAuthReady = true;
+
+    if (existing.role === VaultRole.ADMIN) {
+      const idx = this.accounts.findIndex(
+        (a) => a.email.toLowerCase() === cleanEmail
+      );
+      if (idx >= 0) {
+        const copy = [...this.accounts];
+        copy[idx] = existing;
+        this.accounts = copy;
+      } else {
+        this.accounts = [...this.accounts, existing];
+      }
+      this.saveAccountsToStorage(this.accounts);
+      this.startSharedStoreFirestoreSync();
+    } else {
+      this.stopSharedStoreFirestoreSync();
+      this.accounts = [existing];
+      this.saveAccountsToStorage(this.accounts);
+    }
+
+    this.setActiveSession(existing);
+    void this.ensureCurrentUserHasPasswordLinkedAndUid(fbUser, existing);
+    return existing;
   }
 
   async signInAdminWithGooglePopup(): Promise<VaultUserAccount> {
@@ -820,6 +1062,7 @@ class VaultAccessService {
     }
 
     this.setActiveSession(updatedAccount);
+    void this.ensureCurrentUserHasPasswordLinkedAndUid(fbUser, updatedAccount);
     return updatedAccount;
   }
 
@@ -888,6 +1131,41 @@ class VaultAccessService {
       this.activeSession = updated;
     }
     this.notify();
+
+    // Sync new password to Firebase Authentication too
+    const fbUser = auth.currentUser;
+    if (fbUser && (fbUser.email || '').toLowerCase() === cleanEmail) {
+      try {
+        const hasPasswordProvider = fbUser.providerData.some(
+          (p) => p.providerId === 'password'
+        );
+        if (!hasPasswordProvider) {
+          await linkWithCredential(
+            fbUser,
+            EmailAuthProvider.credential(cleanEmail, newPassword)
+          );
+        } else {
+          try {
+            await updatePassword(fbUser, newPassword);
+          } catch {
+            await reauthenticateWithCredential(
+              fbUser,
+              EmailAuthProvider.credential(cleanEmail, currentPassword)
+            );
+            await updatePassword(fbUser, newPassword);
+          }
+        }
+      } catch {
+        // Best-effort Firebase Auth password sync
+      }
+    } else {
+      await this.provisionSecondaryEmailPasswordAuth(
+        cleanEmail,
+        newPassword,
+        currentPassword
+      );
+    }
+
     await this.pushAccountToFirestoreAwait(updated);
     return updated;
   }
@@ -996,12 +1274,15 @@ class VaultAccessService {
     }
 
     const now = Date.now();
+    const existingAuthUid = existingIdx >= 0 ? list[existingIdx].authUid : undefined;
+    const previousPassword = existingIdx >= 0 ? list[existingIdx].password : undefined;
     const newAccount: VaultUserAccount = {
       name: cleanName,
       email: cleanEmail,
       password: cleanPassword,
       role,
       addedBy: this.activeSession?.email || 'Admin',
+      authUid: existingAuthUid,
       createdAtMillis: existingIdx >= 0 ? list[existingIdx].createdAtMillis : now,
       updatedAtMillis: now,
       pendingCloudSync: true,
@@ -1016,7 +1297,26 @@ class VaultAccessService {
 
     this.accounts = list;
     this.saveAccountsToStorage(list);
-    void this.pushAccountToFirestore(newAccount);
+    void (async () => {
+      const uid = await this.provisionSecondaryEmailPasswordAuth(
+        cleanEmail,
+        cleanPassword,
+        previousPassword
+      );
+      const accountToPush = uid ? { ...newAccount, authUid: uid } : newAccount;
+      if (uid) {
+        const idx = this.accounts.findIndex(
+          (a) => a.email.toLowerCase() === cleanEmail
+        );
+        if (idx >= 0) {
+          const copy = [...this.accounts];
+          copy[idx] = { ...copy[idx], authUid: uid };
+          this.accounts = copy;
+          this.saveAccountsToStorage(copy);
+        }
+      }
+      await this.pushAccountToFirestore(accountToPush);
+    })();
     if (this.activeSession?.email.toLowerCase() === cleanEmail) {
       this.activeSession = newAccount;
     }
@@ -1094,6 +1394,7 @@ class VaultAccessService {
       password: cleanNewPassword,
       role: newRole,
       addedBy: 'Edited by Admin',
+      authUid: cleanOriginalEmail === cleanNewEmail ? target.authUid : undefined,
       updatedAtMillis: now,
       pendingCloudSync: true,
     };
@@ -1105,7 +1406,28 @@ class VaultAccessService {
     if (cleanOriginalEmail !== cleanNewEmail) {
       void this.deleteAccountFromFirestore(cleanOriginalEmail);
     }
-    void this.pushAccountToFirestore(updatedAccount);
+    void (async () => {
+      const uid = await this.provisionSecondaryEmailPasswordAuth(
+        cleanNewEmail,
+        cleanNewPassword,
+        cleanOriginalEmail === cleanNewEmail ? target.password : undefined
+      );
+      const accountToPush = uid
+        ? { ...updatedAccount, authUid: uid }
+        : updatedAccount;
+      if (uid) {
+        const idx = this.accounts.findIndex(
+          (a) => a.email.toLowerCase() === cleanNewEmail
+        );
+        if (idx >= 0) {
+          const copy = [...this.accounts];
+          copy[idx] = { ...copy[idx], authUid: uid };
+          this.accounts = copy;
+          this.saveAccountsToStorage(copy);
+        }
+      }
+      await this.pushAccountToFirestore(accountToPush);
+    })();
 
     if (this.activeSession?.email.toLowerCase() === cleanOriginalEmail) {
       this.setActiveSession(updatedAccount);
