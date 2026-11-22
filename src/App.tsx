@@ -12,8 +12,10 @@ import {
   CheckCircle2,
   X,
 } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AuthScreen } from './components/AuthScreen';
+import { StoreLoadingScreen } from './components/StoreLoadingScreen';
 import { HomeDashboardView } from './components/HomeDashboardView';
 import { SalesPosView } from './components/SalesPosView';
 import { ProductsView } from './components/ProductsView';
@@ -46,6 +48,7 @@ export function DokanStoreMainApp() {
   const [isAuthReady, setIsAuthReady] = useState<boolean>(
     vaultAccessService.getIsAuthReady()
   );
+  const [isStoreDataReady, setIsStoreDataReady] = useState<boolean>(false);
 
   // Navigation & UI Preferences
   const [selectedTab, setSelectedTab] = useState<MainNavTab>(MainNavTab.HOME);
@@ -123,23 +126,74 @@ export function DokanStoreMainApp() {
   useEffect(() => {
     if (!currentAccount) {
       repoRef.current = null;
+      setIsStoreDataReady(false);
       return;
     }
+
+    let cancelled = false;
+    let minDwellDone = false;
+    let dataSynced = false;
+    const loadedCore = new Set<string>();
+    const CORE_KEYS = ['products', 'customers', 'transactions', 'settings'];
+
+    setIsStoreDataReady(false);
+
+    const tryFinishLoading = () => {
+      if (!cancelled && minDwellDone && dataSynced) {
+        setIsStoreDataReady(true);
+      }
+    };
+
+    const markCoreLoaded = (key: string) => {
+      loadedCore.add(key);
+      if (CORE_KEYS.every((k) => loadedCore.has(k))) {
+        dataSynced = true;
+        tryFinishLoading();
+      }
+    };
+
+    // Smooth minimum dwell (360ms) so the logo loader transitions gracefully
+    const minDwellTimer = window.setTimeout(() => {
+      minDwellDone = true;
+      tryFinishLoading();
+    }, 360);
+
+    // Safety fallback (2200ms) so slow/offline connections never get stuck on loader
+    const maxWaitTimer = window.setTimeout(() => {
+      if (!cancelled) {
+        setIsStoreDataReady(true);
+      }
+    }, 2200);
 
     const repo = new DokanRepository(currentAccount.email);
     repoRef.current = repo;
     void repo.ensureRiceCatalogProducts();
 
-    const unsubProducts = repo.subscribeProducts(setProducts);
-    const unsubCustomers = repo.subscribeCustomers(setCustomers);
-    const unsubTransactions = repo.subscribeTransactions(setTransactions);
+    const unsubProducts = repo.subscribeProducts((data) => {
+      setProducts(data);
+      markCoreLoaded('products');
+    });
+    const unsubCustomers = repo.subscribeCustomers((data) => {
+      setCustomers(data);
+      markCoreLoaded('customers');
+    });
+    const unsubTransactions = repo.subscribeTransactions((data) => {
+      setTransactions(data);
+      markCoreLoaded('transactions');
+    });
     const unsubSuppliers = repo.subscribeSuppliers(setSuppliers);
     const unsubStaff = repo.subscribeStaff(setStaffList);
     const unsubAudit = repo.subscribeAuditLogs(setAuditLogs);
     const unsubBin = repo.subscribeRecycleBin(setRecycleBinItems);
-    const unsubSettings = repo.subscribeStoreSettings(setStoreSettings);
+    const unsubSettings = repo.subscribeStoreSettings((data) => {
+      setStoreSettings(data);
+      markCoreLoaded('settings');
+    });
 
     return () => {
+      cancelled = true;
+      window.clearTimeout(minDwellTimer);
+      window.clearTimeout(maxWaitTimer);
       unsubProducts();
       unsubCustomers();
       unsubTransactions();
@@ -149,7 +203,7 @@ export function DokanStoreMainApp() {
       unsubBin();
       unsubSettings();
     };
-  }, [currentAccount]);
+  }, [currentAccount?.email]);
 
   // Sync cloud store_settings (startingCashBalance, language, theme) across devices
   useEffect(() => {
@@ -338,23 +392,28 @@ export function DokanStoreMainApp() {
 
   if (!isAuthReady) {
     return (
-      <div className="min-h-screen w-full bg-gradient-to-b from-[#E9F7F3] via-[#F4FAF8] to-white dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 flex flex-col items-center justify-center px-4">
-        <div className="w-10 h-10 border-[3px] border-[#00965E] border-t-transparent rounded-full animate-spin" />
-        <p className="mt-3 text-xs font-semibold text-slate-500 dark:text-slate-400">
-          {isBengali ? 'নিরাপদ সেশন যাচাই হচ্ছে...' : 'Verifying secure session...'}
-        </p>
+      <div className={isDarkMode ? 'dark' : ''}>
+        <StoreLoadingScreen isBengali={isBengali} mode="startup" />
       </div>
     );
   }
 
   if (!currentAccount) {
     return (
-      <AuthScreen
-        onSuccess={() => {
-          setCurrentAccount(vaultAccessService.getActiveSession());
-          setIsAuthReady(true);
-        }}
-      />
+      <motion.div
+        key="auth-screen-fade"
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <AuthScreen
+          onSuccess={() => {
+            setIsStoreDataReady(false);
+            setCurrentAccount(vaultAccessService.getActiveSession());
+            setIsAuthReady(true);
+          }}
+        />
+      </motion.div>
     );
   }
 
@@ -362,7 +421,17 @@ export function DokanStoreMainApp() {
 
   return (
     <div className={isDarkMode ? 'dark' : ''}>
-      <div className="min-h-screen bg-[#F5F7F6] dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col transition-colors duration-200">
+      <AnimatePresence>
+        {!isStoreDataReady && (
+          <StoreLoadingScreen isBengali={isBengali} mode="post-login" />
+        )}
+      </AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: isStoreDataReady ? 1 : 0 }}
+        transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
+        className="min-h-screen bg-[#F5F7F6] dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col transition-colors duration-200"
+      >
         {/* Top Emerald Brand Header Bar (Persistent across all pages) */}
         <header className="sticky top-0 z-40 bg-gradient-to-r from-[#064E3B] via-[#047857] to-[#00965E] dark:from-[#042F24] dark:via-[#064E3B] dark:to-[#047857] text-white shadow-md border-b border-white/10">
           <div className="max-w-5xl mx-auto px-3.5 sm:px-4 min-h-16 py-2 flex items-center justify-between gap-2.5">
@@ -997,7 +1066,7 @@ export function DokanStoreMainApp() {
             </div>
           </div>
         )}
-      </div>
+      </motion.div>
     </div>
   );
 }

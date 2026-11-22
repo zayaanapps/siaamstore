@@ -10,3 +10,31 @@
     color-scheme: light;
   }
 }
+
+@keyframes siaamSpinSmooth {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes siaamShimmerSlide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+
+.siaam-spin-smooth {
+  animation: siaamSpinSmooth 1.15s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  will-change: transform;
+}
+
+.siaam-shimmer-bar {
+  animation: siaamShimmerSlide 1.35s ease-in-out infinite;
+  will-change: transform;
+}
