@@ -445,7 +445,7 @@ export function DokanStoreMainApp() {
       >
         {/* Top Emerald Brand Header Bar (Persistent across all pages) */}
         <header className="sticky top-0 z-40 bg-gradient-to-r from-[#064E3B] via-[#047857] to-[#00965E] dark:from-[#042F24] dark:via-[#064E3B] dark:to-[#047857] text-white shadow-md border-b border-white/10">
-          <div className="max-w-5xl mx-auto px-3.5 sm:px-4 min-h-16 py-2 flex items-center justify-between gap-2.5">
+          <div className="max-w-5xl lg:max-w-7xl mx-auto px-3.5 sm:px-4 lg:px-6 min-h-16 py-2 flex items-center justify-between gap-2.5 lg:gap-4">
             {/* Decorated Store Logo & Full Store Name + Full Address */}
             <div
               onClick={() => handleSelectMainTab(MainNavTab.HOME)}
@@ -468,6 +468,47 @@ export function DokanStoreMainApp() {
                   {strings.subtitle}
                 </p>
               </div>
+            </div>
+
+            {/* Laptop / Desktop Inline Top Navigation Bar (Hidden on Smartphone / Mobile) */}
+            <div className="hidden lg:flex items-center gap-1 bg-black/15 p-1 rounded-2xl border border-white/15 shrink-0">
+              {(
+                [
+                  [MainNavTab.HOME, strings.navHome, Home],
+                  [MainNavTab.SALES, strings.navSales, ShoppingCart],
+                  [MainNavTab.PRODUCTS, strings.navProducts, Package],
+                  [MainNavTab.CUSTOMERS, strings.navCustomers, Users],
+                  [MainNavTab.MORE, strings.navMore, Wrench],
+                ] as const
+              ).map(([tab, label, Icon]) => {
+                const active = selectedTab === tab;
+                return (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => handleSelectMainTab(tab)}
+                    className={`relative px-3.5 py-2 rounded-xl text-xs flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap ${
+                      active
+                        ? 'bg-white text-[#064E3B] font-black shadow-xs'
+                        : 'text-emerald-50/90 hover:text-white hover:bg-white/10 font-bold'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4 shrink-0" />
+                    <span>{label}</span>
+                    {tab === MainNavTab.SALES && cart.length > 0 && (
+                      <span
+                        className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                          active
+                            ? 'bg-[#00965E] text-white'
+                            : 'bg-white text-[#064E3B]'
+                        }`}
+                      >
+                        {cart.length}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
 
             {/* Right Controls: Install PWA, Language, Theme, Logout */}
@@ -532,7 +573,7 @@ export function DokanStoreMainApp() {
 
         {/* Status Toast Notification */}
         {statusMessage && (
-          <div className="max-w-4xl mx-auto w-full px-4 pt-2.5">
+          <div className="max-w-4xl lg:max-w-7xl mx-auto w-full px-4 lg:px-6 pt-2.5">
             <div className="px-4 py-2.5 rounded-xl bg-[#064E3B] text-white text-xs font-bold flex items-center justify-between shadow-md">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-[#34D399] shrink-0" />
@@ -900,7 +941,7 @@ export function DokanStoreMainApp() {
 
         {/* Bottom 5-Tab Navigation Footer Bar (Persistent across all pages) */}
         <nav className="fixed bottom-0 inset-x-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t-[1.5px] border-[#CBEAD9] dark:border-slate-800 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
-          <div className="max-w-3xl mx-auto grid grid-cols-5 h-16 px-1.5 py-1.5 gap-1">
+          <div className="max-w-3xl lg:max-w-5xl mx-auto grid grid-cols-5 h-16 px-1.5 py-1.5 gap-1">
             {(
               [
                 [MainNavTab.HOME, strings.navHome, Home],

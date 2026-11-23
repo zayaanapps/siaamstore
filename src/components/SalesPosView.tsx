@@ -131,8 +131,12 @@ export const SalesPosView: React.FC<SalesPosViewProps> = ({
     cart.length > 0 ? 'NEW_SALE' : 'OVERVIEW'
   );
 
-  // POS Workspace state
-  const [workspaceView, setWorkspaceView] = useState<PosWorkspaceView>('PRODUCTS');
+  // POS Workspace state (automatically side-by-side SPLIT on laptop/desktop >= 1024px, unchanged PRODUCTS view on smartphone/mobile)
+  const [workspaceView, setWorkspaceView] = useState<PosWorkspaceView>(() =>
+    typeof window !== 'undefined' && window.innerWidth >= 1024
+      ? 'SPLIT'
+      : 'PRODUCTS'
+  );
   const [productSearch, setProductSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [quickFilter, setQuickFilter] = useState<QuickProductFilter>('ALL');
@@ -807,7 +811,11 @@ export const SalesPosView: React.FC<SalesPosViewProps> = ({
             <button
               type="button"
               onClick={() => {
-                setWorkspaceView('PRODUCTS');
+                setWorkspaceView(
+                  typeof window !== 'undefined' && window.innerWidth >= 1024
+                    ? 'SPLIT'
+                    : 'PRODUCTS'
+                );
                 setSubScreen('NEW_SALE');
               }}
               className="py-3 px-4 rounded-xl bg-[#00B368] hover:bg-[#059658] border border-emerald-400/50 text-white font-bold text-sm flex items-center justify-center gap-2 cursor-pointer"
@@ -996,7 +1004,7 @@ export const SalesPosView: React.FC<SalesPosViewProps> = ({
     const showCartPanel = workspaceView === 'CART' || workspaceView === 'SPLIT';
 
     return (
-      <div className="max-w-6xl mx-auto px-2.5 sm:px-4 pt-2 pb-24 space-y-2">
+      <div className="max-w-6xl lg:max-w-7xl mx-auto px-2.5 sm:px-4 lg:px-6 pt-2 pb-24 space-y-2">
         {/* Compact Sticky Top POS Control Bar + Instant Mode Switcher */}
         <div className="sticky top-[58px] z-30 bg-white/95 dark:bg-slate-800/95 backdrop-blur-md px-2.5 py-2 rounded-xl border-[1.5px] border-[#CBEAD9] dark:border-slate-700 shadow-2xs space-y-1.5">
           <div className="flex items-center justify-between gap-1.5">
@@ -2222,7 +2230,7 @@ export const SalesPosView: React.FC<SalesPosViewProps> = ({
   });
 
   return (
-    <div className="max-w-4xl mx-auto px-4 pt-4 pb-8 space-y-4">
+    <div className="max-w-4xl lg:max-w-7xl mx-auto px-4 lg:px-6 pt-4 pb-8 space-y-4">
       <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-4 rounded-2xl border-[1.5px] border-[#CBEAD9] dark:border-slate-700 shadow-2xs">
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center text-[#00965E] shrink-0">
@@ -2309,7 +2317,11 @@ export const SalesPosView: React.FC<SalesPosViewProps> = ({
       <button
         type="button"
         onClick={() => {
-          setWorkspaceView('PRODUCTS');
+          setWorkspaceView(
+            typeof window !== 'undefined' && window.innerWidth >= 1024
+              ? 'SPLIT'
+              : 'PRODUCTS'
+          );
           setSubScreen('NEW_SALE');
         }}
         className="w-full h-[54px] rounded-[16px] bg-[#00B368] hover:bg-[#059658] border-[1.5px] border-[#34D399]/60 text-white font-bold text-[17px] shadow-md flex items-center justify-center gap-2.5 transition cursor-pointer"
@@ -2394,7 +2406,7 @@ export const SalesPosView: React.FC<SalesPosViewProps> = ({
           <p className="text-sm font-bold text-slate-500">{strings.noSalesYet}</p>
         </div>
       ) : (
-        <div className="space-y-2.5">
+        <div className="space-y-2.5 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-3">
           {displayedSales.map((tx, index) => {
             const serialNum = displayedSales.length - index;
             const isCredit = tx.dueAmount > 0;

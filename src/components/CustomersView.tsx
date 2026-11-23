@@ -1641,7 +1641,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-3 sm:px-4 pt-2.5 pb-8 space-y-2">
+    <div className="max-w-4xl lg:max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 pt-2.5 pb-8 space-y-2">
       {/* Compact & Beautiful Top Customer Khata Summary Card */}
       <div className="relative overflow-hidden rounded-xl border border-[#A7F3D0] dark:border-emerald-800/80 bg-gradient-to-r from-[#064E3B] via-[#047857] to-[#00965E] text-white shadow-sm px-3 py-2.5">
         <div className="pointer-events-none absolute -top-8 -right-8 w-24 h-24 rounded-full bg-white/10 blur-xl" />
@@ -1816,7 +1816,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 lg:gap-2.5">
           {filteredCustomers.map((customer) => {
             const slNumber = customerSlMap.get(customer.id) || 1;
             const lastTx = lastTxByCustomerMap.get(customer.id);

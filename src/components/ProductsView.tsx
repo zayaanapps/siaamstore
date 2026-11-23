@@ -916,7 +916,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   const outCount = products.filter((p) => p.stock <= 0).length;
 
   return (
-    <div className="max-w-4xl mx-auto px-3 sm:px-4 pt-3 pb-8 space-y-2">
+    <div className="max-w-4xl lg:max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 pt-3 pb-8 space-y-2">
       {/* Decorated Products Menu Top Summary Card */}
       <div className="bg-white dark:bg-slate-800 rounded-2xl border-[1.5px] border-[#A7F3D0] dark:border-slate-700 shadow-xs overflow-hidden">
         {/* Top Title Banner with Emerald Accent Gradient */}
@@ -1130,7 +1130,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-1.5 lg:gap-2.5">
           {filteredProducts.map((product) => {
             const slNumber = productSerialNumberMap[product.id] || 1;
             const isOut = product.stock <= 0;

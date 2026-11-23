@@ -533,7 +533,7 @@ export const MoreManagementView: React.FC<MoreManagementViewProps> = ({
           ? 'none'
           : generated
       }
-      className="max-w-4xl mx-auto px-4 pt-4 pb-10 space-y-6"
+      className="max-w-4xl lg:max-w-7xl mx-auto px-4 lg:px-6 pt-4 pb-10 space-y-6"
     >
       <div className="flex items-center gap-3 bg-white dark:bg-slate-800 p-4 rounded-2xl border-[1.5px] border-[#CBEAD9] dark:border-slate-700 shadow-2xs">
         <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center text-[#00965E]">
@@ -572,7 +572,7 @@ export const MoreManagementView: React.FC<MoreManagementViewProps> = ({
           <Store className="w-3.5 h-3.5 text-[#00965E]" />
           <span>{strings.secStoreOps}</span>
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
           <MenuRow
             icon={<PackagePlus className="w-5 h-5" />}
             title={strings.menuPurchases}
@@ -634,7 +634,7 @@ export const MoreManagementView: React.FC<MoreManagementViewProps> = ({
           <Cloud className="w-3.5 h-3.5 text-[#00965E]" />
           <span>{strings.secDataCloud}</span>
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2.5">
           <MenuRow
             icon={<History className="w-5 h-5" />}
             title={strings.menuAuditLog}
