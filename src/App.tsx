@@ -592,19 +592,17 @@ export function DokanStoreMainApp() {
 
         {/* Active Tab Body */}
         <main className="flex-1 pb-20 overflow-x-hidden">
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.div
-              key={`${selectedTab}-${tabResetKey}`}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-              transformTemplate={(_, generated) =>
-                generated === 'none' || generated === 'translateY(0px)'
-                  ? 'none'
-                  : generated
-              }
-            >
+          <motion.div
+            key={`${selectedTab}-${tabResetKey}`}
+            initial={{ opacity: 0.01, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.13, ease: [0.16, 1, 0.3, 1] }}
+            transformTemplate={(_, generated) =>
+              generated === 'none' || generated === 'translateY(0px)'
+                ? 'none'
+                : generated
+            }
+          >
               {selectedTab === MainNavTab.HOME && (
                 <HomeDashboardView
                   stats={dailyStats}
@@ -935,8 +933,7 @@ export function DokanStoreMainApp() {
               }}
             />
           )}
-            </motion.div>
-          </AnimatePresence>
+          </motion.div>
         </main>
 
         {/* Bottom 5-Tab Navigation Footer Bar (Persistent across all pages) */}
@@ -957,7 +954,7 @@ export function DokanStoreMainApp() {
                   key={tab}
                   type="button"
                   onClick={() => handleSelectMainTab(tab)}
-                  className={`relative flex flex-col items-center justify-center gap-0.5 rounded-xl border transition-colors duration-200 active:scale-[0.96] cursor-pointer overflow-hidden ${
+                  className={`relative flex flex-col items-center justify-center gap-0.5 rounded-xl border transition-colors duration-150 active:scale-[0.97] cursor-pointer overflow-hidden ${
                     active
                       ? 'border-transparent text-[#00965E] dark:text-[#34D399] font-extrabold'
                       : 'border-transparent text-slate-500 dark:text-slate-400 font-semibold hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100/60 dark:hover:bg-slate-800/40'
@@ -968,8 +965,8 @@ export function DokanStoreMainApp() {
                       layoutId="siaam-bottom-nav-active-pill"
                       transition={{
                         type: 'spring',
-                        stiffness: 420,
-                        damping: 32,
+                        stiffness: 520,
+                        damping: 36,
                       }}
                       className="absolute inset-0 rounded-xl bg-[#ECFDF5] dark:bg-emerald-950/60 border border-[#A7F3D0] dark:border-emerald-800/80 shadow-xs"
                     />

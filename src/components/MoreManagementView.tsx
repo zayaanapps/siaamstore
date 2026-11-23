@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   ArrowLeft,
@@ -186,6 +186,7 @@ export const MoreManagementView: React.FC<MoreManagementViewProps> = ({
 }) => {
   const isBengali = language === AppLanguage.BENGALI;
   const [subScreen, setSubScreen] = useState<MoreSubScreen>(MoreSubScreen.MENU);
+  const menuScrollYRef = useRef<number>(0);
   const currentUser = vaultAccessService.getActiveSession();
   const isAdmin = currentUser?.role === VaultRole.ADMIN;
 
@@ -209,8 +210,22 @@ export const MoreManagementView: React.FC<MoreManagementViewProps> = ({
   );
 
   const changeSubScreen = (next: MoreSubScreen) => {
+    if (next === subScreen) return;
+    const isReturningToMenu = next === MoreSubScreen.MENU;
+    if (subScreen === MoreSubScreen.MENU && !isReturningToMenu) {
+      menuScrollYRef.current = typeof window !== 'undefined' ? window.scrollY : 0;
+    }
     setSubScreen(next);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (typeof window !== 'undefined') {
+      if (isReturningToMenu) {
+        const targetY = menuScrollYRef.current;
+        window.requestAnimationFrame(() => {
+          window.scrollTo({ top: targetY, behavior: 'instant' as ScrollBehavior });
+        });
+      } else {
+        window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+      }
+    }
   };
 
   const openSubScreen = (target: MoreSubScreen) => {
@@ -223,6 +238,68 @@ export const MoreManagementView: React.FC<MoreManagementViewProps> = ({
     }
     changeSubScreen(target);
   };
+
+  const quickToolNavItems: Array<{
+    screen: MoreSubScreen;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }> = [
+    {
+      screen: MoreSubScreen.PURCHASE_TRACKER,
+      label: strings.menuPurchases,
+      icon: PackagePlus,
+    },
+    {
+      screen: MoreSubScreen.SUPPLIER_LEDGER,
+      label: strings.menuSuppliers,
+      icon: Truck,
+    },
+    {
+      screen: MoreSubScreen.EXPENSE_TRACKING,
+      label: strings.menuExpenses,
+      icon: Receipt,
+    },
+    {
+      screen: MoreSubScreen.CASH_BOOK,
+      label: strings.menuCashBook,
+      icon: Wallet,
+    },
+    {
+      screen: MoreSubScreen.BUSINESS_REPORTS,
+      label: strings.menuBusinessReports,
+      icon: BarChart3,
+    },
+    {
+      screen: MoreSubScreen.DUE_REPORTS,
+      label: strings.menuDueReports,
+      icon: AlertTriangle,
+    },
+    {
+      screen: MoreSubScreen.STAFF_ROLES,
+      label: strings.menuStaff,
+      icon: UserCheck,
+    },
+    {
+      screen: MoreSubScreen.AUDIT_LOG,
+      label: strings.menuAuditLog,
+      icon: History,
+    },
+    {
+      screen: MoreSubScreen.USER_MANAGEMENT,
+      label: strings.menuUserMgmt,
+      icon: Users,
+    },
+    {
+      screen: MoreSubScreen.RECYCLE_BIN,
+      label: strings.menuRecycleBin,
+      icon: RotateCcw,
+    },
+    {
+      screen: MoreSubScreen.TRANSACTION_DELETION,
+      label: strings.menuDeleteTransactions,
+      icon: Trash2,
+    },
+  ];
 
   const renderBackHeader = (title: string, subtitle?: string) => (
     <div className="flex items-center justify-between p-4 rounded-2xl bg-white dark:bg-slate-800 border-[1.5px] border-[#CBEAD9] dark:border-slate-700 shadow-2xs">
@@ -455,27 +532,6 @@ export const MoreManagementView: React.FC<MoreManagementViewProps> = ({
     return null;
   };
 
-  if (subScreen !== MoreSubScreen.MENU) {
-    return (
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.div
-          key={subScreen}
-          initial={{ opacity: 0, x: 14 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -10 }}
-          transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-          transformTemplate={(_, generated) =>
-            generated === 'none' || generated === 'translateX(0px)'
-              ? 'none'
-              : generated
-          }
-        >
-          {renderActiveSubScreen()}
-        </motion.div>
-      </AnimatePresence>
-    );
-  }
-
   // MAIN MENU
   const MenuRow: React.FC<{
     icon: React.ReactNode;
@@ -523,18 +579,83 @@ export const MoreManagementView: React.FC<MoreManagementViewProps> = ({
   );
 
   return (
-    <motion.div
-      key="more-main-menu"
-      initial={{ opacity: 0, x: -10 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-      transformTemplate={(_, generated) =>
-        generated === 'none' || generated === 'translateX(0px)'
-          ? 'none'
-          : generated
-      }
-      className="max-w-4xl lg:max-w-7xl mx-auto px-4 lg:px-6 pt-4 pb-10 space-y-6"
-    >
+    <>
+      {subScreen !== MoreSubScreen.MENU ? (
+        <div>
+          {/* 1-Tap Quick Tool Switcher Strip across all Tools sub-menus (stays steady on switch) */}
+          <div className="max-w-4xl lg:max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 pt-2.5">
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 px-1.5 rounded-2xl bg-white/90 dark:bg-slate-800/90 border border-[#CBEAD9] dark:border-slate-700 shadow-2xs">
+              <button
+                type="button"
+                onClick={() => changeSubScreen(MoreSubScreen.MENU)}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100/80 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 text-[#00965E] dark:text-emerald-300 text-[11px] font-extrabold shrink-0 transition-colors active:scale-[0.97] cursor-pointer"
+                title={isBengali ? 'সব টুলস মেনু' : 'All Tools Menu'}
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>{isBengali ? 'টুলস মেনু' : 'All Tools'}</span>
+              </button>
+
+              <div className="h-4 w-[1px] bg-slate-200 dark:bg-slate-700 shrink-0 mx-0.5" />
+
+              {quickToolNavItems.map(({ screen, label, icon: ToolIcon }) => {
+                const active = subScreen === screen;
+                return (
+                  <button
+                    key={screen}
+                    type="button"
+                    onClick={() => openSubScreen(screen)}
+                    className={`relative px-2.5 py-1.5 rounded-xl text-[11px] inline-flex items-center gap-1.5 shrink-0 transition-colors active:scale-[0.97] cursor-pointer whitespace-nowrap ${
+                      active
+                        ? 'text-white font-extrabold'
+                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/70 dark:hover:bg-slate-700/50 font-bold'
+                    }`}
+                  >
+                    {active && (
+                      <motion.span
+                        layoutId="tools-quick-switcher-active-pill"
+                        transition={{
+                          type: 'spring',
+                          stiffness: 520,
+                          damping: 36,
+                        }}
+                        className="absolute inset-0 rounded-xl bg-[#00965E] shadow-2xs"
+                      />
+                    )}
+                    <ToolIcon className="relative z-10 w-3.5 h-3.5 shrink-0" />
+                    <span className="relative z-10">{label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <motion.div
+            key={subScreen}
+            initial={{ opacity: 0.01, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.13, ease: [0.16, 1, 0.3, 1] }}
+            transformTemplate={(_, generated) =>
+              generated === 'none' || generated === 'translateY(0px)'
+                ? 'none'
+                : generated
+            }
+          >
+            {renderActiveSubScreen()}
+          </motion.div>
+        </div>
+      ) : (
+        <motion.div
+          key="more-main-menu"
+          initial={{ opacity: 0.01, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.13, ease: [0.16, 1, 0.3, 1] }}
+          transformTemplate={(_, generated) =>
+            generated === 'none' || generated === 'translateY(0px)'
+              ? 'none'
+              : generated
+          }
+          className="max-w-4xl lg:max-w-7xl mx-auto px-4 lg:px-6 pt-4 pb-10 space-y-6"
+        >
       <div className="flex items-center gap-3 bg-white dark:bg-slate-800 p-4 rounded-2xl border-[1.5px] border-[#CBEAD9] dark:border-slate-700 shadow-2xs">
         <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center text-[#00965E]">
           <Store className="w-5 h-5" />
@@ -744,6 +865,9 @@ export const MoreManagementView: React.FC<MoreManagementViewProps> = ({
         </div>
       </div>
 
+        </motion.div>
+      )}
+
       {/* Store Profile Modal */}
       <StoreProfileModal
         isOpen={showStoreProfileModal}
@@ -764,56 +888,67 @@ export const MoreManagementView: React.FC<MoreManagementViewProps> = ({
       />
 
       {/* Terminate Session Confirmation Modal */}
-      {showTerminateConfirm &&
-        typeof document !== 'undefined' &&
+      {typeof document !== 'undefined' &&
         createPortal(
-          <div
-            className="fixed inset-0 z-[100] h-[100dvh] w-screen bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-hidden"
-            onClick={() => setShowTerminateConfirm(false)}
-            role="dialog"
-            aria-modal="true"
-          >
-            <div
-              className="w-full max-w-sm max-h-[calc(100dvh-32px)] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border border-[#CBEAD9] dark:border-slate-700 p-6 shadow-2xl text-center space-y-4"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="mx-auto w-12 h-12 rounded-2xl bg-[#E8F8F0] dark:bg-emerald-950/60 border border-[#CBEAD9] dark:border-emerald-800/60 text-[#00965E] dark:text-emerald-400 flex items-center justify-center">
-                <Power className="w-6 h-6" />
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-base font-black text-slate-900 dark:text-white">
-                  {isBengali ? 'সেশন বন্ধ করবেন?' : 'Terminate Session?'}
-                </h3>
-                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                  {isBengali
-                    ? 'বর্তমান সেশন বন্ধ হয়ে যাবে এবং পুনরায় প্রবেশ করতে লগইন করতে হবে।'
-                    : 'Your current session will end and you will need to log in again.'}
-                </p>
-              </div>
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setShowTerminateConfirm(false)}
-                  className="min-h-[44px] px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold cursor-pointer"
+          <AnimatePresence>
+            {showTerminateConfirm && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.13 }}
+                className="fixed inset-0 z-[100] h-[100dvh] w-screen bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-hidden"
+                onClick={() => setShowTerminateConfirm(false)}
+                role="dialog"
+                aria-modal="true"
+              >
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.98, y: 6 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.98, y: 4 }}
+                  transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
+                  className="w-full max-w-sm max-h-[calc(100dvh-32px)] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border border-[#CBEAD9] dark:border-slate-700 p-6 shadow-2xl text-center space-y-4"
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  {isBengali ? 'বাতিল' : 'Cancel'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowTerminateConfirm(false);
-                    onSignOut();
-                  }}
-                  className="min-h-[44px] px-4 py-2 rounded-xl bg-[#00965E] hover:bg-[#007D4E] text-white text-xs font-extrabold inline-flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <Power className="w-3.5 h-3.5" />
-                  <span>{isBengali ? 'নিশ্চিত করুন' : 'Terminate'}</span>
-                </button>
-              </div>
-            </div>
-          </div>,
+                  <div className="mx-auto w-12 h-12 rounded-2xl bg-[#E8F8F0] dark:bg-emerald-950/60 border border-[#CBEAD9] dark:border-emerald-800/60 text-[#00965E] dark:text-emerald-400 flex items-center justify-center">
+                    <Power className="w-6 h-6" />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="text-base font-black text-slate-900 dark:text-white">
+                      {isBengali ? 'সেশন বন্ধ করবেন?' : 'Terminate Session?'}
+                    </h3>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                      {isBengali
+                        ? 'বর্তমান সেশন বন্ধ হয়ে যাবে এবং পুনরায় প্রবেশ করতে লগইন করতে হবে।'
+                        : 'Your current session will end and you will need to log in again.'}
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowTerminateConfirm(false)}
+                      className="min-h-[44px] px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold cursor-pointer"
+                    >
+                      {isBengali ? 'বাতিল' : 'Cancel'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowTerminateConfirm(false);
+                        onSignOut();
+                      }}
+                      className="min-h-[44px] px-4 py-2 rounded-xl bg-[#00965E] hover:bg-[#007D4E] text-white text-xs font-extrabold inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Power className="w-3.5 h-3.5" />
+                      <span>{isBengali ? 'নিশ্চিত করুন' : 'Terminate'}</span>
+                    </button>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>,
           document.body
         )}
-    </motion.div>
+    </>
   );
 };

@@ -1,4 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
+import { motion } from 'motion/react';
 import {
   ArrowLeft,
   BarChart3,
@@ -584,6 +585,17 @@ export const BusinessReportsView: React.FC<BusinessReportsViewProps> = ({
         ))}
       </div>
 
+      <motion.div
+        key={activeTab}
+        initial={{ opacity: 0.01, y: 3 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.12, ease: [0.16, 1, 0.3, 1] }}
+        transformTemplate={(_, generated) =>
+          generated === 'none' || generated === 'translateY(0px)'
+            ? 'none'
+            : generated
+        }
+      >
       {/* ================================================================= */}
       {/* TAB 1: OVERVIEW — P&L, VALUATION, 7-DAY CHART & EXPENSE BREAKDOWN */}
       {/* ================================================================= */}
@@ -1035,6 +1047,7 @@ export const BusinessReportsView: React.FC<BusinessReportsViewProps> = ({
           )}
         </div>
       )}
+      </motion.div>
 
       {/* Business Report PDF Modal */}
       {showPdfModal && (

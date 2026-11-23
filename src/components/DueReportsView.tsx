@@ -1,4 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
+import { motion } from 'motion/react';
 import {
   ArrowLeft,
   AlertTriangle,
@@ -579,6 +580,18 @@ export const DueReportsView: React.FC<DueReportsViewProps> = ({
         </button>
       </div>
 
+      <motion.div
+        key={activeTab}
+        initial={{ opacity: 0.01, y: 3 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.12, ease: [0.16, 1, 0.3, 1] }}
+        transformTemplate={(_, generated) =>
+          generated === 'none' || generated === 'translateY(0px)'
+            ? 'none'
+            : generated
+        }
+        className="space-y-3.5"
+      >
       {/* Search + Sort + Min Amount Bar (for Customers & Suppliers tabs) */}
       {(activeTab === 'CUSTOMERS' || activeTab === 'SUPPLIERS') && (
         <div className="bg-white dark:bg-slate-800 rounded-2xl p-3 border-[1.5px] border-slate-200 dark:border-slate-700 space-y-2.5 shadow-2xs">
@@ -1085,6 +1098,7 @@ export const DueReportsView: React.FC<DueReportsViewProps> = ({
           </div>
         </div>
       )}
+      </motion.div>
 
       {/* Due Report PDF Modal */}
       {showPdfModal && (

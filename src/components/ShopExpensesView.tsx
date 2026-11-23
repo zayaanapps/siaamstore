@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { motion } from 'motion/react';
 import {
   ArrowLeft,
   Receipt,
@@ -994,6 +995,17 @@ export const ShopExpensesView: React.FC<ShopExpensesViewProps> = ({
         </button>
       </div>
 
+      <motion.div
+        key={activeTab}
+        initial={{ opacity: 0.01, y: 3 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.12, ease: [0.16, 1, 0.3, 1] }}
+        transformTemplate={(_, generated) =>
+          generated === 'none' || generated === 'translateY(0px)'
+            ? 'none'
+            : generated
+        }
+      >
       {/* ================================================================= */}
       {/* TAB 1: ADD EXPENSE + EDITABLE COMMON PRESETS + TODAY'S LIST       */}
       {/* ================================================================= */}
@@ -1580,6 +1592,7 @@ export const ShopExpensesView: React.FC<ShopExpensesViewProps> = ({
           </div>
         </div>
       )}
+      </motion.div>
 
       {/* ================================================================= */}
       {/* MODAL: MANAGE COMMON SHOP EXPENSES (ADD / EDIT / DELETE)          */}

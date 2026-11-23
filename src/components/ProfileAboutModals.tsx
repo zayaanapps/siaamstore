@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
+import { AnimatePresence, motion } from 'motion/react';
 import {
   X,
   MapPin,
@@ -49,7 +50,7 @@ export const StoreProfileModal: React.FC<StoreProfileModalProps> = ({
   const isBn = language === AppLanguage.BENGALI;
   const [copiedStore, setCopiedStore] = useState(false);
 
-  if (!isOpen || typeof document === 'undefined') return null;
+  if (typeof document === 'undefined') return null;
 
   const handleCopyStoreInfo = async () => {
     const text = isBn
@@ -88,17 +89,27 @@ export const StoreProfileModal: React.FC<StoreProfileModalProps> = ({
   ];
 
   return createPortal(
-    <div
-      className="fixed inset-0 z-[100] h-[100dvh] w-screen bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-2.5 sm:p-4 overflow-hidden"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-label={isBn ? 'স্টোর প্রোফাইল' : 'Store Profile'}
-    >
-      <div
-        className="w-full max-w-md md:max-w-2xl lg:max-w-3xl max-h-[calc(100dvh-20px)] sm:max-h-[calc(100dvh-32px)] overflow-y-auto overscroll-contain rounded-3xl bg-white dark:bg-slate-900 border border-emerald-200/80 dark:border-slate-700 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.13 }}
+          className="fixed inset-0 z-[100] h-[100dvh] w-screen bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-2.5 sm:p-4 overflow-hidden"
+          onClick={onClose}
+          role="dialog"
+          aria-modal="true"
+          aria-label={isBn ? 'স্টোর প্রোফাইল' : 'Store Profile'}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98, y: 6 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.98, y: 4 }}
+            transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
+            className="w-full max-w-md md:max-w-2xl lg:max-w-3xl max-h-[calc(100dvh-20px)] sm:max-h-[calc(100dvh-32px)] overflow-y-auto overscroll-contain rounded-3xl bg-white dark:bg-slate-900 border border-emerald-200/80 dark:border-slate-700 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
         {/* ============================================================
             SMARTPHONE / MOBILE LAYOUT (< md): Unchanged Vertical Card
            ============================================================ */}
@@ -436,8 +447,10 @@ export const StoreProfileModal: React.FC<StoreProfileModalProps> = ({
             </div>
           </div>
         </div>
-      </div>
-    </div>,
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>,
     document.body
   );
 };
@@ -470,7 +483,7 @@ export const DeveloperProfileModal: React.FC<DeveloperProfileModalProps> = ({
   const [photoIdx, setPhotoIdx] = useState(0);
   const [copiedEmail, setCopiedEmail] = useState(false);
 
-  if (!isOpen || typeof document === 'undefined') return null;
+  if (typeof document === 'undefined') return null;
 
   const activePhoto = DEV_PHOTOS[photoIdx] || DEV_PHOTOS[0];
 
@@ -489,17 +502,27 @@ export const DeveloperProfileModal: React.FC<DeveloperProfileModalProps> = ({
     : `Siaam Store V${APP_VERSION_NAME}`;
 
   return createPortal(
-    <div
-      className="fixed inset-0 z-[100] h-[100dvh] w-screen bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-2.5 sm:p-4 overflow-hidden"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-label={isBn ? 'অ্যাপ ডেভেলপার' : 'About App Developer'}
-    >
-      <div
-        className="w-full max-w-md md:max-w-2xl lg:max-w-3xl max-h-[calc(100dvh-20px)] sm:max-h-[calc(100dvh-32px)] overflow-y-auto overscroll-contain rounded-3xl bg-white dark:bg-slate-900 border border-emerald-200/80 dark:border-slate-700 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.13 }}
+          className="fixed inset-0 z-[100] h-[100dvh] w-screen bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-2.5 sm:p-4 overflow-hidden"
+          onClick={onClose}
+          role="dialog"
+          aria-modal="true"
+          aria-label={isBn ? 'অ্যাপ ডেভেলপার' : 'About App Developer'}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98, y: 6 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.98, y: 4 }}
+            transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
+            className="w-full max-w-md md:max-w-2xl lg:max-w-3xl max-h-[calc(100dvh-20px)] sm:max-h-[calc(100dvh-32px)] overflow-y-auto overscroll-contain rounded-3xl bg-white dark:bg-slate-900 border border-emerald-200/80 dark:border-slate-700 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
         {/* ============================================================
             SMARTPHONE / MOBILE LAYOUT (< md): Unchanged Vertical Card
            ============================================================ */}
@@ -957,8 +980,10 @@ export const DeveloperProfileModal: React.FC<DeveloperProfileModalProps> = ({
             </div>
           </div>
         </div>
-      </div>
-    </div>,
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>,
     document.body
   );
 };
