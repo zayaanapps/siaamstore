@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ArrowLeft,
   PackagePlus,
@@ -23,6 +24,7 @@ import {
   Lock,
   ChevronRight,
 } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import {
   AppLanguage,
   Product,
@@ -206,6 +208,11 @@ export const MoreManagementView: React.FC<MoreManagementViewProps> = ({
     0
   );
 
+  const changeSubScreen = (next: MoreSubScreen) => {
+    setSubScreen(next);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const openSubScreen = (target: MoreSubScreen) => {
     if (!isAdmin) {
       setAdminRestrictedNotice(true);
@@ -214,7 +221,7 @@ export const MoreManagementView: React.FC<MoreManagementViewProps> = ({
     if (target === MoreSubScreen.PURCHASE_TRACKER) {
       setPreselectedPurchaseSupplierId('');
     }
-    setSubScreen(target);
+    changeSubScreen(target);
   };
 
   const renderBackHeader = (title: string, subtitle?: string) => (
@@ -222,7 +229,7 @@ export const MoreManagementView: React.FC<MoreManagementViewProps> = ({
       <div>
         <button
           type="button"
-          onClick={() => setSubScreen(MoreSubScreen.MENU)}
+          onClick={() => changeSubScreen(MoreSubScreen.MENU)}
           className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-50 dark:bg-slate-900 border border-emerald-200 dark:border-slate-700 text-xs font-bold text-[#00965E] hover:border-[#00965E] mb-1.5 cursor-pointer"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
@@ -240,207 +247,232 @@ export const MoreManagementView: React.FC<MoreManagementViewProps> = ({
     </div>
   );
 
-  // 1. PURCHASE TRACKER (STOCK IN)
-  if (subScreen === MoreSubScreen.PURCHASE_TRACKER) {
-    return (
-      <PurchaseStockInView
-        key={preselectedPurchaseSupplierId || 'default-purchase'}
-        products={products}
-        suppliers={suppliers}
-        transactions={transactions}
-        strings={strings}
-        language={language}
-        initialSupplierId={preselectedPurchaseSupplierId}
-        onBack={() => {
-          setPreselectedPurchaseSupplierId('');
-          setSubScreen(MoreSubScreen.MENU);
-        }}
-        onOpenSuppliers={() => {
-          setPreselectedPurchaseSupplierId('');
-          setSubScreen(MoreSubScreen.SUPPLIER_LEDGER);
-        }}
-        onRecordMultiItemPurchase={onRecordMultiItemPurchase}
-        onVoidPurchase={onVoidPurchase}
-      />
-    );
-  }
-
-  // 2. SUPPLIER LEDGER
-  if (subScreen === MoreSubScreen.SUPPLIER_LEDGER) {
-    return (
-      <SupplierLedgerView
-        suppliers={suppliers}
-        transactions={transactions}
-        strings={strings}
-        language={language}
-        onBack={() => setSubScreen(MoreSubScreen.MENU)}
-        onStartPurchaseForSupplier={(supplierId) => {
-          setPreselectedPurchaseSupplierId(supplierId);
-          setSubScreen(MoreSubScreen.PURCHASE_TRACKER);
-        }}
-        onAddSupplier={onAddSupplier}
-        onUpdateSupplier={onUpdateSupplier}
-        onRecordSupplierPayment={onRecordSupplierPayment}
-        onAddSupplierCreditOwed={onAddSupplierCreditOwed}
-        onDeleteSupplier={onDeleteSupplier}
-        onDeleteTransaction={onDeleteTransaction}
-      />
-    );
-  }
-
-  // 3. EXPENSE TRACKING (SHOP EXPENSES)
-  if (subScreen === MoreSubScreen.EXPENSE_TRACKING) {
-    return (
-      <ShopExpensesView
-        transactions={transactions}
-        strings={strings}
-        language={language}
-        cloudCategories={storeSettings?.expenseCategories}
-        cloudPresets={storeSettings?.expensePresets}
-        onSyncExpenseSettings={
-          onUpdateStoreSettings
-            ? (data) => onUpdateStoreSettings(data)
-            : undefined
-        }
-        onBack={() => setSubScreen(MoreSubScreen.MENU)}
-        onOpenCashBook={() => setSubScreen(MoreSubScreen.CASH_BOOK)}
-        onRecordExpense={onRecordExpense}
-        onDeleteTransaction={onDeleteTransaction}
-      />
-    );
-  }
-
-  // 4. CASH BOOK
-  if (subScreen === MoreSubScreen.CASH_BOOK) {
-    return (
-      <CashBookView
-        stats={stats}
-        transactions={transactions}
-        startingCashBalance={startingCashBalance}
-        onUpdateStartingCash={onUpdateStartingCash}
-        onRecordExpense={onRecordExpense}
-        onOpenExpenses={() => setSubScreen(MoreSubScreen.EXPENSE_TRACKING)}
-        strings={strings}
-        language={language}
-        onBack={() => setSubScreen(MoreSubScreen.MENU)}
-      />
-    );
-  }
-
-  // 5. BUSINESS REPORTS
-  if (subScreen === MoreSubScreen.BUSINESS_REPORTS) {
-    return (
-      <BusinessReportsView
-        stats={stats}
-        products={products}
-        customers={customers}
-        suppliers={suppliers}
-        transactions={transactions}
-        startingCashBalance={startingCashBalance}
-        strings={strings}
-        language={language}
-        onBack={() => setSubScreen(MoreSubScreen.MENU)}
-        onOpenDueReports={() => setSubScreen(MoreSubScreen.DUE_REPORTS)}
-      />
-    );
-  }
-
-  // 6. DUE REPORTS
-  if (subScreen === MoreSubScreen.DUE_REPORTS) {
-    return (
-      <DueReportsView
-        customers={customers}
-        suppliers={suppliers}
-        transactions={transactions}
-        strings={strings}
-        language={language}
-        onBack={() => setSubScreen(MoreSubScreen.MENU)}
-        onOpenBusinessReports={() =>
-          setSubScreen(MoreSubScreen.BUSINESS_REPORTS)
-        }
-        onOpenSuppliers={() => setSubScreen(MoreSubScreen.SUPPLIER_LEDGER)}
-      />
-    );
-  }
-
-  // 8. DATA & TRANSACTION DELETION
-  if (subScreen === MoreSubScreen.TRANSACTION_DELETION) {
-    return (
-      <DataDeletionCenterView
-        products={products}
-        customers={customers}
-        transactions={transactions}
-        suppliers={suppliers}
-        staffList={staffList}
-        strings={strings}
-        language={language}
-        onBack={() => setSubScreen(MoreSubScreen.MENU)}
-        onOpenRecycleBin={() => setSubScreen(MoreSubScreen.RECYCLE_BIN)}
-        onDeleteTransaction={onDeleteTransaction}
-        onDeleteProduct={onDeleteProduct}
-        onDeleteCustomer={onDeleteCustomer}
-        onDeleteSupplier={onDeleteSupplier}
-        onDeleteStaff={onDeleteStaff}
-        onResetAllStoreData={onResetAllStoreData}
-      />
-    );
-  }
-
-  // 9. RECYCLE BIN
-  if (subScreen === MoreSubScreen.RECYCLE_BIN) {
-    return (
-      <RecycleBinView
-        recycleBinItems={recycleBinItems}
-        strings={strings}
-        language={language}
-        onBack={() => setSubScreen(MoreSubScreen.MENU)}
-        onRestoreFromRecycleBin={onRestoreFromRecycleBin}
-        onPermanentlyDeleteRecycleBinItem={onPermanentlyDeleteRecycleBinItem}
-        onEmptyRecycleBin={onEmptyRecycleBin}
-      />
-    );
-  }
-
-  // 10. USER MANAGEMENT
-  if (subScreen === MoreSubScreen.USER_MANAGEMENT) {
-    return (
-      <div className="max-w-3xl mx-auto px-3 sm:px-4 py-3">
-        <AdminAccessControlPanel
-          isBengali={isBengali}
-          onBack={() => setSubScreen(MoreSubScreen.MENU)}
-          headerTitle={strings.menuUserMgmt}
+  const renderActiveSubScreen = () => {
+    // 1. PURCHASE TRACKER (STOCK IN)
+    if (subScreen === MoreSubScreen.PURCHASE_TRACKER) {
+      return (
+        <PurchaseStockInView
+          key={preselectedPurchaseSupplierId || 'default-purchase'}
+          products={products}
+          suppliers={suppliers}
+          transactions={transactions}
+          strings={strings}
+          language={language}
+          initialSupplierId={preselectedPurchaseSupplierId}
+          onBack={() => {
+            setPreselectedPurchaseSupplierId('');
+            changeSubScreen(MoreSubScreen.MENU);
+          }}
+          onOpenSuppliers={() => {
+            setPreselectedPurchaseSupplierId('');
+            changeSubScreen(MoreSubScreen.SUPPLIER_LEDGER);
+          }}
+          onRecordMultiItemPurchase={onRecordMultiItemPurchase}
+          onVoidPurchase={onVoidPurchase}
         />
-      </div>
-    );
-  }
+      );
+    }
 
-  // 11. STAFF ROLES
-  if (subScreen === MoreSubScreen.STAFF_ROLES) {
-    return (
-      <StaffRolesView
-        staffList={staffList}
-        transactions={transactions}
-        strings={strings}
-        language={language}
-        onBack={() => setSubScreen(MoreSubScreen.MENU)}
-        onAddStaff={onAddStaff}
-        onUpdateStaff={onUpdateStaff}
-        onToggleStaffActive={onToggleStaffActive}
-        onDeleteStaff={onDeleteStaff}
-        onRecordExpense={onRecordExpense}
-      />
-    );
-  }
+    // 2. SUPPLIER LEDGER
+    if (subScreen === MoreSubScreen.SUPPLIER_LEDGER) {
+      return (
+        <SupplierLedgerView
+          suppliers={suppliers}
+          transactions={transactions}
+          strings={strings}
+          language={language}
+          onBack={() => changeSubScreen(MoreSubScreen.MENU)}
+          onStartPurchaseForSupplier={(supplierId) => {
+            setPreselectedPurchaseSupplierId(supplierId);
+            changeSubScreen(MoreSubScreen.PURCHASE_TRACKER);
+          }}
+          onAddSupplier={onAddSupplier}
+          onUpdateSupplier={onUpdateSupplier}
+          onRecordSupplierPayment={onRecordSupplierPayment}
+          onAddSupplierCreditOwed={onAddSupplierCreditOwed}
+          onDeleteSupplier={onDeleteSupplier}
+          onDeleteTransaction={onDeleteTransaction}
+        />
+      );
+    }
 
-  // 12. AUDIT LOG
-  if (subScreen === MoreSubScreen.AUDIT_LOG) {
+    // 3. EXPENSE TRACKING (SHOP EXPENSES)
+    if (subScreen === MoreSubScreen.EXPENSE_TRACKING) {
+      return (
+        <ShopExpensesView
+          transactions={transactions}
+          strings={strings}
+          language={language}
+          cloudCategories={storeSettings?.expenseCategories}
+          cloudPresets={storeSettings?.expensePresets}
+          onSyncExpenseSettings={
+            onUpdateStoreSettings
+              ? (data) => onUpdateStoreSettings(data)
+              : undefined
+          }
+          onBack={() => changeSubScreen(MoreSubScreen.MENU)}
+          onOpenCashBook={() => changeSubScreen(MoreSubScreen.CASH_BOOK)}
+          onRecordExpense={onRecordExpense}
+          onDeleteTransaction={onDeleteTransaction}
+        />
+      );
+    }
+
+    // 4. CASH BOOK
+    if (subScreen === MoreSubScreen.CASH_BOOK) {
+      return (
+        <CashBookView
+          stats={stats}
+          transactions={transactions}
+          startingCashBalance={startingCashBalance}
+          onUpdateStartingCash={onUpdateStartingCash}
+          onRecordExpense={onRecordExpense}
+          onOpenExpenses={() => changeSubScreen(MoreSubScreen.EXPENSE_TRACKING)}
+          strings={strings}
+          language={language}
+          onBack={() => changeSubScreen(MoreSubScreen.MENU)}
+        />
+      );
+    }
+
+    // 5. BUSINESS REPORTS
+    if (subScreen === MoreSubScreen.BUSINESS_REPORTS) {
+      return (
+        <BusinessReportsView
+          stats={stats}
+          products={products}
+          customers={customers}
+          suppliers={suppliers}
+          transactions={transactions}
+          startingCashBalance={startingCashBalance}
+          strings={strings}
+          language={language}
+          onBack={() => changeSubScreen(MoreSubScreen.MENU)}
+          onOpenDueReports={() => changeSubScreen(MoreSubScreen.DUE_REPORTS)}
+        />
+      );
+    }
+
+    // 6. DUE REPORTS
+    if (subScreen === MoreSubScreen.DUE_REPORTS) {
+      return (
+        <DueReportsView
+          customers={customers}
+          suppliers={suppliers}
+          transactions={transactions}
+          strings={strings}
+          language={language}
+          onBack={() => changeSubScreen(MoreSubScreen.MENU)}
+          onOpenBusinessReports={() =>
+            changeSubScreen(MoreSubScreen.BUSINESS_REPORTS)
+          }
+          onOpenSuppliers={() => changeSubScreen(MoreSubScreen.SUPPLIER_LEDGER)}
+        />
+      );
+    }
+
+    // 8. DATA & TRANSACTION DELETION
+    if (subScreen === MoreSubScreen.TRANSACTION_DELETION) {
+      return (
+        <DataDeletionCenterView
+          products={products}
+          customers={customers}
+          transactions={transactions}
+          suppliers={suppliers}
+          staffList={staffList}
+          strings={strings}
+          language={language}
+          onBack={() => changeSubScreen(MoreSubScreen.MENU)}
+          onOpenRecycleBin={() => changeSubScreen(MoreSubScreen.RECYCLE_BIN)}
+          onDeleteTransaction={onDeleteTransaction}
+          onDeleteProduct={onDeleteProduct}
+          onDeleteCustomer={onDeleteCustomer}
+          onDeleteSupplier={onDeleteSupplier}
+          onDeleteStaff={onDeleteStaff}
+          onResetAllStoreData={onResetAllStoreData}
+        />
+      );
+    }
+
+    // 9. RECYCLE BIN
+    if (subScreen === MoreSubScreen.RECYCLE_BIN) {
+      return (
+        <RecycleBinView
+          recycleBinItems={recycleBinItems}
+          strings={strings}
+          language={language}
+          onBack={() => changeSubScreen(MoreSubScreen.MENU)}
+          onRestoreFromRecycleBin={onRestoreFromRecycleBin}
+          onPermanentlyDeleteRecycleBinItem={onPermanentlyDeleteRecycleBinItem}
+          onEmptyRecycleBin={onEmptyRecycleBin}
+        />
+      );
+    }
+
+    // 10. USER MANAGEMENT
+    if (subScreen === MoreSubScreen.USER_MANAGEMENT) {
+      return (
+        <div className="max-w-3xl mx-auto px-3 sm:px-4 py-3">
+          <AdminAccessControlPanel
+            isBengali={isBengali}
+            onBack={() => changeSubScreen(MoreSubScreen.MENU)}
+            headerTitle={strings.menuUserMgmt}
+          />
+        </div>
+      );
+    }
+
+    // 11. STAFF ROLES
+    if (subScreen === MoreSubScreen.STAFF_ROLES) {
+      return (
+        <StaffRolesView
+          staffList={staffList}
+          transactions={transactions}
+          strings={strings}
+          language={language}
+          onBack={() => changeSubScreen(MoreSubScreen.MENU)}
+          onAddStaff={onAddStaff}
+          onUpdateStaff={onUpdateStaff}
+          onToggleStaffActive={onToggleStaffActive}
+          onDeleteStaff={onDeleteStaff}
+          onRecordExpense={onRecordExpense}
+        />
+      );
+    }
+
+    // 12. AUDIT LOG
+    if (subScreen === MoreSubScreen.AUDIT_LOG) {
+      return (
+        <AuditLogView
+          auditLogs={auditLogs}
+          strings={strings}
+          language={language}
+          onBack={() => changeSubScreen(MoreSubScreen.MENU)}
+        />
+      );
+    }
+
+    return null;
+  };
+
+  if (subScreen !== MoreSubScreen.MENU) {
     return (
-      <AuditLogView
-        auditLogs={auditLogs}
-        strings={strings}
-        language={language}
-        onBack={() => setSubScreen(MoreSubScreen.MENU)}
-      />
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={subScreen}
+          initial={{ opacity: 0, x: 14 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -10 }}
+          transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+          transformTemplate={(_, generated) =>
+            generated === 'none' || generated === 'translateX(0px)'
+              ? 'none'
+              : generated
+          }
+        >
+          {renderActiveSubScreen()}
+        </motion.div>
+      </AnimatePresence>
     );
   }
 
@@ -456,10 +488,10 @@ export const MoreManagementView: React.FC<MoreManagementViewProps> = ({
     <button
       type="button"
       onClick={onClick}
-      className="w-full p-3.5 rounded-2xl bg-white dark:bg-slate-800 border-[1.5px] border-[#CBEAD9] dark:border-slate-700 hover:border-[#00965E] transition flex items-center justify-between text-left shadow-2xs cursor-pointer"
+      className="group w-full p-3.5 rounded-2xl bg-white dark:bg-slate-800 border-[1.5px] border-[#CBEAD9] dark:border-slate-700 hover:border-[#00965E] transition-all duration-200 active:scale-[0.985] flex items-center justify-between text-left shadow-2xs cursor-pointer"
     >
       <div className="flex items-center gap-3 min-w-0">
-        <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-slate-700 border border-emerald-200 dark:border-slate-600 text-[#00965E] flex items-center justify-center shrink-0">
+        <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-slate-700 border border-emerald-200 dark:border-slate-600 text-[#00965E] flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-105">
           {icon}
         </div>
         <div className="min-w-0">
@@ -483,15 +515,26 @@ export const MoreManagementView: React.FC<MoreManagementViewProps> = ({
           <Lock className="w-3.5 h-3.5 text-amber-600" />
         </div>
       ) : (
-        <div className="w-7 h-7 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 flex items-center justify-center shrink-0">
-          <ChevronRight className="w-4 h-4 text-slate-400" />
+        <div className="w-7 h-7 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:translate-x-0.5">
+          <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-[#00965E]" />
         </div>
       )}
     </button>
   );
 
   return (
-    <div className="max-w-4xl mx-auto px-4 pt-4 pb-10 space-y-6">
+    <motion.div
+      key="more-main-menu"
+      initial={{ opacity: 0, x: -10 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+      transformTemplate={(_, generated) =>
+        generated === 'none' || generated === 'translateX(0px)'
+          ? 'none'
+          : generated
+      }
+      className="max-w-4xl mx-auto px-4 pt-4 pb-10 space-y-6"
+    >
       <div className="flex items-center gap-3 bg-white dark:bg-slate-800 p-4 rounded-2xl border-[1.5px] border-[#CBEAD9] dark:border-slate-700 shadow-2xs">
         <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center text-[#00965E]">
           <Store className="w-5 h-5" />
@@ -721,53 +764,56 @@ export const MoreManagementView: React.FC<MoreManagementViewProps> = ({
       />
 
       {/* Terminate Session Confirmation Modal */}
-      {showTerminateConfirm && (
-        <div
-          className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4"
-          onClick={() => setShowTerminateConfirm(false)}
-          role="dialog"
-          aria-modal="true"
-        >
+      {showTerminateConfirm &&
+        typeof document !== 'undefined' &&
+        createPortal(
           <div
-            className="w-full max-w-sm rounded-3xl bg-white dark:bg-slate-900 border border-[#CBEAD9] dark:border-slate-700 p-6 shadow-2xl text-center space-y-4"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-[100] h-[100dvh] w-screen bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-hidden"
+            onClick={() => setShowTerminateConfirm(false)}
+            role="dialog"
+            aria-modal="true"
           >
-            <div className="mx-auto w-12 h-12 rounded-2xl bg-[#E8F8F0] dark:bg-emerald-950/60 border border-[#CBEAD9] dark:border-emerald-800/60 text-[#00965E] dark:text-emerald-400 flex items-center justify-center">
-              <Power className="w-6 h-6" />
+            <div
+              className="w-full max-w-sm max-h-[calc(100dvh-32px)] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border border-[#CBEAD9] dark:border-slate-700 p-6 shadow-2xl text-center space-y-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="mx-auto w-12 h-12 rounded-2xl bg-[#E8F8F0] dark:bg-emerald-950/60 border border-[#CBEAD9] dark:border-emerald-800/60 text-[#00965E] dark:text-emerald-400 flex items-center justify-center">
+                <Power className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-black text-slate-900 dark:text-white">
+                  {isBengali ? 'সেশন বন্ধ করবেন?' : 'Terminate Session?'}
+                </h3>
+                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                  {isBengali
+                    ? 'বর্তমান সেশন বন্ধ হয়ে যাবে এবং পুনরায় প্রবেশ করতে লগইন করতে হবে।'
+                    : 'Your current session will end and you will need to log in again.'}
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowTerminateConfirm(false)}
+                  className="min-h-[44px] px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold cursor-pointer"
+                >
+                  {isBengali ? 'বাতিল' : 'Cancel'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowTerminateConfirm(false);
+                    onSignOut();
+                  }}
+                  className="min-h-[44px] px-4 py-2 rounded-xl bg-[#00965E] hover:bg-[#007D4E] text-white text-xs font-extrabold inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Power className="w-3.5 h-3.5" />
+                  <span>{isBengali ? 'নিশ্চিত করুন' : 'Terminate'}</span>
+                </button>
+              </div>
             </div>
-            <div className="space-y-1">
-              <h3 className="text-base font-black text-slate-900 dark:text-white">
-                {isBengali ? 'সেশন বন্ধ করবেন?' : 'Terminate Session?'}
-              </h3>
-              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                {isBengali
-                  ? 'বর্তমান সেশন বন্ধ হয়ে যাবে এবং পুনরায় প্রবেশ করতে লগইন করতে হবে।'
-                  : 'Your current session will end and you will need to log in again.'}
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => setShowTerminateConfirm(false)}
-                className="min-h-[44px] px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold cursor-pointer"
-              >
-                {isBengali ? 'বাতিল' : 'Cancel'}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowTerminateConfirm(false);
-                  onSignOut();
-                }}
-                className="min-h-[44px] px-4 py-2 rounded-xl bg-[#00965E] hover:bg-[#007D4E] text-white text-xs font-extrabold inline-flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <Power className="w-3.5 h-3.5" />
-                <span>{isBengali ? 'নিশ্চিত করুন' : 'Terminate'}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+          </div>,
+          document.body
+        )}
+    </motion.div>
   );
 };

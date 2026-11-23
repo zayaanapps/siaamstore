@@ -55,6 +55,15 @@ export function DokanStoreMainApp() {
   // Navigation & UI Preferences
   const [selectedTab, setSelectedTab] = useState<MainNavTab>(MainNavTab.HOME);
   const [tabResetKey, setTabResetKey] = useState<number>(0);
+
+  const handleSelectMainTab = (nextTab: MainNavTab) => {
+    if (nextTab === selectedTab) {
+      setTabResetKey((k) => k + 1);
+    } else {
+      setSelectedTab(nextTab);
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
   const [language, setLanguage] = useState<AppLanguage>(() => {
     const saved = localStorage.getItem('siaam_store_language');
     return saved === AppLanguage.ENGLISH ? AppLanguage.ENGLISH : AppLanguage.BENGALI;
@@ -439,10 +448,7 @@ export function DokanStoreMainApp() {
           <div className="max-w-5xl mx-auto px-3.5 sm:px-4 min-h-16 py-2 flex items-center justify-between gap-2.5">
             {/* Decorated Store Logo & Full Store Name + Full Address */}
             <div
-              onClick={() => {
-                setSelectedTab(MainNavTab.HOME);
-                setTabResetKey((k) => k + 1);
-              }}
+              onClick={() => handleSelectMainTab(MainNavTab.HOME)}
               className="flex items-center gap-2.5 sm:gap-3 min-w-0 cursor-pointer"
             >
               <div className="relative p-[2.5px] rounded-[14px] bg-gradient-to-br from-[#A7F3D0] via-white to-[#34D399] shadow-[0_4px_14px_rgba(0,0,0,0.24)] ring-2 ring-white/20 shrink-0">
@@ -544,15 +550,28 @@ export function DokanStoreMainApp() {
         )}
 
         {/* Active Tab Body */}
-        <main className="flex-1 pb-20">
-          {selectedTab === MainNavTab.HOME && (
-            <HomeDashboardView
-              stats={dailyStats}
-              products={products}
-              customers={customers}
-              strings={strings}
-              language={language}
-              onNavigateToSell={() => setSelectedTab(MainNavTab.SALES)}
+        <main className="flex-1 pb-20 overflow-x-hidden">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={`${selectedTab}-${tabResetKey}`}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+              transformTemplate={(_, generated) =>
+                generated === 'none' || generated === 'translateY(0px)'
+                  ? 'none'
+                  : generated
+              }
+            >
+              {selectedTab === MainNavTab.HOME && (
+                <HomeDashboardView
+                  stats={dailyStats}
+                  products={products}
+                  customers={customers}
+                  strings={strings}
+                  language={language}
+                  onNavigateToSell={() => handleSelectMainTab(MainNavTab.SALES)}
               onQuickRestock={async (product) => {
                 if (!repoRef.current) return;
                 await repoRef.current.adjustProductStock(
@@ -875,6 +894,8 @@ export function DokanStoreMainApp() {
               }}
             />
           )}
+            </motion.div>
+          </AnimatePresence>
         </main>
 
         {/* Bottom 5-Tab Navigation Footer Bar (Persistent across all pages) */}
@@ -894,17 +915,25 @@ export function DokanStoreMainApp() {
                 <button
                   key={tab}
                   type="button"
-                  onClick={() => {
-                    setSelectedTab(tab);
-                    setTabResetKey((k) => k + 1);
-                  }}
-                  className={`flex flex-col items-center justify-center gap-0.5 rounded-xl border transition cursor-pointer ${
+                  onClick={() => handleSelectMainTab(tab)}
+                  className={`relative flex flex-col items-center justify-center gap-0.5 rounded-xl border transition-colors duration-200 active:scale-[0.96] cursor-pointer overflow-hidden ${
                     active
-                      ? 'bg-[#ECFDF5] dark:bg-emerald-950/60 border-[#A7F3D0] dark:border-emerald-800/80 text-[#00965E] dark:text-[#34D399] font-extrabold shadow-xs'
+                      ? 'border-transparent text-[#00965E] dark:text-[#34D399] font-extrabold'
                       : 'border-transparent text-slate-500 dark:text-slate-400 font-semibold hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100/60 dark:hover:bg-slate-800/40'
                   }`}
                 >
-                  <div className="relative">
+                  {active && (
+                    <motion.span
+                      layoutId="siaam-bottom-nav-active-pill"
+                      transition={{
+                        type: 'spring',
+                        stiffness: 420,
+                        damping: 32,
+                      }}
+                      className="absolute inset-0 rounded-xl bg-[#ECFDF5] dark:bg-emerald-950/60 border border-[#A7F3D0] dark:border-emerald-800/80 shadow-xs"
+                    />
+                  )}
+                  <div className="relative z-10">
                     <Icon className="w-5 h-5" />
                     {tab === MainNavTab.SALES && cart.length > 0 && (
                       <span className="absolute -top-1.5 -right-2.5 px-1.5 py-0.2 rounded-full bg-[#00965E] text-white text-[9px] font-black">
@@ -912,7 +941,7 @@ export function DokanStoreMainApp() {
                       </span>
                     )}
                   </div>
-                  <span className="text-[11px]">{label}</span>
+                  <span className="relative z-10 text-[11px]">{label}</span>
                 </button>
               );
             })}
